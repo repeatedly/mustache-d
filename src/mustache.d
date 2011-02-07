@@ -15,19 +15,16 @@ import std.traits;
 
 template Mustache(String = string)
 {
-    // Context[] replaced with Section?
-    struct Section {}
-
-    struct Context
+    final class Context
     {
       private:
-        Context*          parent;
+        Context           parent;
         String[String]    variables;
         Context[][String] sections;
 
 
       public:
-        this(Context* context)
+        this(Context context = null)
         {
             parent = context;
         }
@@ -52,17 +49,19 @@ template Mustache(String = string)
             }
         }
 
-        Context* section(String key)
+        Context section(String key, lazy size_t size = 10)
         {
-            if (key in sections)
-                sections[key] ~= Context(&this);
-            else
-                sections[key] = [Context(&this)];
+            bool    first  = key in sections ? true : false;
+            Context result = new Context(this);
 
-            return &sections[key][sections[key].length - 1];
+            sections[key] ~= result;
+            if (first)
+                sections[key].reserve(size);
+
+            return result;
         }
 
-        nothrow const(String) fetch(String key) const
+        nothrow String fetch(String key) const
         {
             auto result = key in variables;
             if (result !is null)
@@ -89,7 +88,7 @@ template Mustache(String = string)
 
     unittest
     {
-        Context context;
+        Context context = new Context();
 
         context["name"] = "Red Bull";
         assert(context["name"] == "Red Bull");
@@ -119,8 +118,6 @@ template Mustache(String = string)
 
 
   private:
-
-
     /**
      * Mustache's tag types
      */
