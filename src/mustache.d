@@ -190,11 +190,11 @@ template Mustache(String = string)
         { // list
             foreach (i; 100..105) {
                 auto sub = context.addSubContext("sub");
-                sub.opIndexAssign(i, "num");
+                sub["num"] = i;
 
                 foreach (b; [true, false]) {
                     auto subsub = sub.addSubContext("subsub");
-                    subsub.opIndexAssign(b, "To be or not to be");
+                    subsub["To be or not to be"] = b;
                 }
             }
 
