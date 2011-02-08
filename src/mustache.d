@@ -11,6 +11,7 @@ module mustache;
 
 import std.conv;
 import std.traits;
+import std.variant;
 
 
 template Mustache(String = string)
@@ -18,9 +19,57 @@ template Mustache(String = string)
     final class Context
     {
       private:
-        Context           parent;
-        String[String]    variables;
-        Context[][String] sections;
+        enum SectionType
+        {
+            value, func, list
+        }
+
+        struct Value
+        {
+            SectionType type;
+
+            union
+            {
+                String[String]          value;
+                String delegate(String) func;  // String delegate(String) delegate()?
+                Context[]               list;
+            }
+
+            this(String[String] v)
+            {
+                type  = SectionType.value;
+                value = v;
+            }
+
+            this(string delegate(string) f)
+            {
+                type = SectionType.func;
+                func = f;
+            }
+
+            this(Context c)
+            {
+                type = SectionType.list;
+                list = [c];
+            }
+
+            /* nothrow : AA's length is not nothrow */
+            bool empty() const
+            {
+                final switch (type) {
+                case SectionType.value:
+                    return !value.length;  // Why?
+                case SectionType.func:
+                    return func is null;
+                case SectionType.list:
+                    return !list.length;
+                }
+            }
+        }
+
+        Context        parent;
+        String[String] variables;
+        Value[String]  sections;
 
 
       public:
@@ -38,10 +87,24 @@ template Mustache(String = string)
         {
             static if (isAssociativeArray!(T))
             {
-                foreach (k, v; value) {
-                    auto context = section(key); 
-                    context[k] = v;
+                static if (is(T V : V[K], K : String))
+                {
+                    String[String] aa;
+
+                    static if (is(V == String))
+                        aa = value;
+                    else
+                        foreach (k, v; value) aa[k] = to!String(v);
+
+                    sections[key] = Value(aa);
                 }
+                else static assert(false, "Non-supported Associative Array type");
+            }
+            else static if (is(T == delegate))
+            {
+                static if (is(T D == S delegate(S), S : String))
+                    sections[key] = Value(value);
+                else static assert(false, "Non-supported delegate type");
             }
             else
             {
@@ -49,16 +112,38 @@ template Mustache(String = string)
             }
         }
 
-        Context section(String key, lazy size_t size = 10)
+        Variant section(String key)
         {
-            bool    first  = key in sections ? true : false;
-            Context result = new Context(this);
+            auto p = key in sections;
+            if (!p || p.empty())
+                return Variant.init;
 
-            sections[key] ~= result;
-            if (first)
-                sections[key].reserve(size);
+            Variant v;
 
-            return result;
+            final switch (p.type) {
+            case SectionType.value:
+                v = p.value;
+            case SectionType.func:
+                v = p.func;
+            case SectionType.list:
+                v = p.list;
+            }
+
+            return v;
+        }
+
+        Context addSubContext(String key, lazy size_t size = 10)
+        {
+            auto c = new Context(this);
+            auto p = key in sections;
+            if (!p || p.type != SectionType.list) {
+                sections[key] = Value(c);
+                sections[key].list.reserve(size);
+            } else {
+                sections[key].list ~= c;
+            }
+
+            return c;
         }
 
         nothrow String fetch(String key) const
@@ -73,17 +158,24 @@ template Mustache(String = string)
             return parent.fetch(key);
         }
 
-        nothrow const(Context[]) fetchSection(String key) const
+
+      private:
+        /* nothrow : Value.empty() is not nothrow. See above comment */ 
+        const(Result) fetchBody(Result, SectionType type, string name)(String key) const
         {
             auto result = key in sections;
-            if (result !is null)
-                return *result;
+            if (result !is null && result.type == type)
+                return result.empty() ? null : mixin("result." ~ to!String(type));
 
             if (parent is null)
                 return null;
 
-            return parent.fetchSection(key);
+            return mixin("parent.fetch" ~ name ~ "(key)");
         }
+
+        alias fetchBody!(Context[],               SectionType.list,  "List")  fetchList;
+        alias fetchBody!(String delegate(String), SectionType.func,  "Func")  fetchFunc;
+        alias fetchBody!(String[String],          SectionType.value, "Value") fetchValue;
     }
 
     unittest
@@ -95,24 +187,41 @@ template Mustache(String = string)
         context["price"] = 275;
         assert(context["price"] == "275");
 
-        foreach (i; 100..105) {
-            auto sub = context.section("sub");
-            sub.opIndexAssign(i, "num");
+        { // list
+            foreach (i; 100..105) {
+                auto sub = context.addSubContext("sub");
+                sub.opIndexAssign(i, "num");
 
-            foreach (b; [true, false]) {
-                auto subsub = sub.section("subsub");
-                subsub.opIndexAssign(b, "To be or not to be");
+                foreach (b; [true, false]) {
+                    auto subsub = sub.addSubContext("subsub");
+                    subsub.opIndexAssign(b, "To be or not to be");
+                }
+            }
+
+            foreach (i, sub; context.fetchList("sub")) {
+                assert(sub.fetch("name") == "Red Bull");
+                assert(sub["num"] == to!String(i + 100));
+
+                foreach (j, subsub; sub.fetchList("subsub")) {
+                    assert(subsub.fetch("price") == to!String(275));
+                    assert(subsub["To be or not to be"] == to!String(j == 0));
+                }
             }
         }
+        { // value
+            String[String] aa = ["name" : "Ritsu"];
 
-        foreach (i, ref sub; context.fetchSection("sub")) {
-            assert(sub.fetch("name") == "Red Bull");
-            assert(sub["num"] == to!String(i + 100));
+            context["Value"] = aa;
+            assert(context.fetchValue("Value")["name"] == aa["name"]);
+            // @@@BUG@@@ Why following assert raises signal?
+            //assert(context.fetchValue("Value") == aa);
+            //writeln(context.fetchValue("Value") == aa);  // -> true
+        }
+        { // func
+            auto func = (string str) { return "<b>" ~ str ~ "</b>"; };
 
-            foreach (j, ref subsub; sub.fetchSection("subsub")) {
-                assert(subsub.fetch("price") == to!String(275));
-                assert(subsub["To be or not to be"] == to!String(j == 0));
-            }
+            context["Wrapped"] = func;
+            assert(context.fetchFunc("Wrapped")("Ritsu") == func("Ritsu"));
         }
     }
 
