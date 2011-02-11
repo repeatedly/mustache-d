@@ -4,7 +4,7 @@
  * Implemented according to $(WEB mustache.github.com/mustache.5.html, mustache(5)).
  *
  * Copyright: Copyright Masahiro Nakagawa 2011-.
- * License:   <a href = "http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
+ * License:   <a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
  * Authors:   Masahiro Nakagawa
  */
 module mustache;
@@ -21,10 +21,10 @@ template Mustache(String = string)
       private:
         enum SectionType
         {
-            value, func, list
+            nil, value, func, list
         }
 
-        struct Value
+        struct Section
         {
             SectionType type;
 
@@ -41,7 +41,7 @@ template Mustache(String = string)
                 value = v;
             }
 
-            this(string delegate(string) f)
+            this(String delegate(String) f)
             {
                 type = SectionType.func;
                 func = f;
@@ -57,6 +57,8 @@ template Mustache(String = string)
             bool empty() const
             {
                 final switch (type) {
+                case SectionType.nil:
+                    return true;
                 case SectionType.value:
                     return !value.length;  // Why?
                 case SectionType.func:
@@ -67,9 +69,9 @@ template Mustache(String = string)
             }
         }
 
-        Context        parent;
-        String[String] variables;
-        Value[String]  sections;
+        Context         parent;
+        String[String]  variables;
+        Section[String] sections;
 
 
       public:
@@ -78,11 +80,33 @@ template Mustache(String = string)
             parent = context;
         }
 
+        /**
+         * Gets $(D_PARAM key)'s value. This method does not search Section.
+         *
+         * Params:
+         *  key = key string to search
+         *
+         * Returns:
+         *  a $(D_PARAM key) associated value.
+         *
+         * Throws:
+         *  a RangeError if $(D_PARAM key) does not exist.
+         */
         nothrow String opIndex(String key) const
         {
             return variables[key];
         }
 
+        /**
+         * Assigns $(D_PARAM value)(automatically convert to String) to $(D_PARAM key) field.
+         *
+         * If you try to assign associative array or delegate,
+         * This method assigns $(D_PARAM value) as Section.
+         *
+         * Params:
+         *  value = some type value to assign
+         *  key   = key string to assign
+         */
         void opIndexAssign(T)(T value, String key)
         {
             static if (isAssociativeArray!(T))
@@ -96,14 +120,14 @@ template Mustache(String = string)
                     else
                         foreach (k, v; value) aa[k] = to!String(v);
 
-                    sections[key] = Value(aa);
+                    sections[key] = Section(aa);
                 }
                 else static assert(false, "Non-supported Associative Array type");
             }
             else static if (is(T == delegate))
             {
                 static if (is(T D == S delegate(S), S : String))
-                    sections[key] = Value(value);
+                    sections[key] = Section(value);
                 else static assert(false, "Non-supported delegate type");
             }
             else
@@ -112,32 +136,54 @@ template Mustache(String = string)
             }
         }
 
+        /**
+         * Gets $(D_PARAM key)'s section value for Phobos friends.
+         *
+         * Params*
+         *  key = key string to get
+         *
+         * Returns:
+         *  section wrapped Variant.
+         */
         Variant section(String key)
         {
             auto p = key in sections;
-            if (!p || p.empty())
+            if (!p)
                 return Variant.init;
 
-            Variant v;
+            Variant v = void;
 
             final switch (p.type) {
-            case SectionType.value:
+            case SectionType.nil:
+                v = Variant.init;
+             case SectionType.value:
                 v = p.value;
             case SectionType.func:
                 v = p.func;
             case SectionType.list:
                 v = p.list;
-            }
+           }
 
             return v;
         }
 
-        Context addSubContext(String key, lazy size_t size = 10)
+        /**
+         * Adds new context to $(D_PARAM key)'s section. This method overwrites with
+         * list type if you already assigned other type to $(D_PARAM key)'s section.
+         *
+         * Params:
+         *  key  = key string to add
+         *  size = reserve size for avoiding reallocation
+         *
+         * Returns:
+         *  new Context object that added to $(D_PARAM key) section list. 
+         */
+        Context addSubContext(String key, lazy size_t size = 1)
         {
             auto c = new Context(this);
             auto p = key in sections;
             if (!p || p.type != SectionType.list) {
-                sections[key] = Value(c);
+                sections[key] = Section(c);
                 sections[key].list.reserve(size);
             } else {
                 sections[key].list ~= c;
@@ -146,6 +192,15 @@ template Mustache(String = string)
             return c;
         }
 
+        /**
+         * Fetches $(D_PARAM)'s value. This method follows parent context.
+         *
+         * Params:
+         *  key = key string to fetch
+         * 
+         * Returns:
+         *  a $(D_PARAM key) associated value.
+         */
         nothrow String fetch(String key) const
         {
             auto result = key in variables;
@@ -158,14 +213,12 @@ template Mustache(String = string)
             return parent.fetch(key);
         }
 
-
-      private:
-        /* nothrow : Value.empty() is not nothrow. See above comment */ 
-        const(Result) fetchBody(Result, SectionType type, string name)(String key) const
+        /* nothrow : Section.empty() is not nothrow. See above comment */ 
+        private const(Result) fetchSection(Result, SectionType type, string name)(String key) const
         {
             auto result = key in sections;
             if (result !is null && result.type == type)
-                return result.empty() ? null : mixin("result." ~ to!String(type));
+                return mixin("result." ~ to!String(type));
 
             if (parent is null)
                 return null;
@@ -173,9 +226,23 @@ template Mustache(String = string)
             return mixin("parent.fetch" ~ name ~ "(key)");
         }
 
-        alias fetchBody!(Context[],               SectionType.list,  "List")  fetchList;
-        alias fetchBody!(String delegate(String), SectionType.func,  "Func")  fetchFunc;
-        alias fetchBody!(String[String],          SectionType.value, "Value") fetchValue;
+        alias fetchSection!(Context[],               SectionType.list,  "List")  fetchList;
+        alias fetchSection!(String delegate(String), SectionType.func,  "Func")  fetchFunc;
+        alias fetchSection!(String[String],          SectionType.value, "Value") fetchValue;
+
+
+    private:
+        SectionType fetchableSectionType(String key)
+        {
+            auto result = key in sections;
+            if (result !is null)
+                return result.type;
+
+            if (parent is null)
+                return SectionType.nil;
+
+            return parent.fetchableSectionType(key);
+        }
     }
 
     unittest
@@ -218,7 +285,7 @@ template Mustache(String = string)
             //writeln(context.fetchValue("Value") == aa);  // -> true
         }
         { // func
-            auto func = (string str) { return "<b>" ~ str ~ "</b>"; };
+            auto func = (String str) { return "<b>" ~ str ~ "</b>"; };
 
             context["Wrapped"] = func;
             assert(context.fetchFunc("Wrapped")("Ritsu") == func("Ritsu"));
