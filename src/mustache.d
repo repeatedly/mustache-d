@@ -192,6 +192,8 @@ template Mustache(String = string)
             return c;
         }
 
+
+      private:
         /**
          * Fetches $(D_PARAM)'s value. This method follows parent context.
          *
@@ -199,7 +201,7 @@ template Mustache(String = string)
          *  key = key string to fetch
          * 
          * Returns:
-         *  a $(D_PARAM key) associated value.
+         *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
         nothrow String fetch(String key) const
         {
@@ -213,8 +215,19 @@ template Mustache(String = string)
             return parent.fetch(key);
         }
 
-        /* nothrow : Section.empty() is not nothrow. See above comment */ 
-        private const(Result) fetchSection(Result, SectionType type, string name)(String key) const
+        nothrow SectionType fetchableSectionType(String key) const
+        {
+            auto result = key in sections;
+            if (result !is null)
+                return result.type;
+
+            if (parent is null)
+                return SectionType.nil;
+
+            return parent.fetchableSectionType(key);
+        }
+
+        nothrow const(Result) fetchSection(Result, SectionType type, string name)(String key) const
         {
             auto result = key in sections;
             if (result !is null && result.type == type)
@@ -229,20 +242,6 @@ template Mustache(String = string)
         alias fetchSection!(Context[],               SectionType.list,  "List")  fetchList;
         alias fetchSection!(String delegate(String), SectionType.func,  "Func")  fetchFunc;
         alias fetchSection!(String[String],          SectionType.value, "Value") fetchValue;
-
-
-    private:
-        SectionType fetchableSectionType(String key)
-        {
-            auto result = key in sections;
-            if (result !is null)
-                return result.type;
-
-            if (parent is null)
-                return SectionType.nil;
-
-            return parent.fetchableSectionType(key);
-        }
     }
 
     unittest
