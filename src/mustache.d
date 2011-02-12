@@ -9,6 +9,7 @@
  */
 module mustache;
 
+import std.array;
 import std.conv;
 import std.string;
 import std.traits;
@@ -293,6 +294,121 @@ template Mustache(String = string)
     }
 
 
+    Node[] compile(String src)
+    {
+        struct Memo
+        {
+            String key;
+            Node[] nodes;
+        }
+
+        String startTag = "{{";
+        String endTag   = "}}";
+        Node[] result;
+        Memo[] stack;  // for nested section
+
+        while (true) {
+            auto hit = src.indexOf(startTag);
+            if (hit == -1) {  // rest template does not have tags
+                if (hit > 0)
+                    result ~= Node(src);
+                break;
+            } else {
+                if (hit > 0)
+                    result ~= Node(src[0..hit]);
+                src = src[hit + startTag.length..$];
+            }
+
+            auto end = src.indexOf(endTag);
+            if (end == -1)
+                throw new Exception("Tag missmatch");
+
+            switch (src[0]) {
+            case '#', '^':
+                auto key = src[1..end].strip();
+                result  ~= Node(NodeType.section, key, src[0] == '^');
+                stack   ~= Memo(key, result);
+                result   = null;
+                break;
+            case '/':
+                auto key = src[1..end].strip();
+                if (stack.empty)
+                    throw new Exception(key ~ " is unopened");
+                Memo memo = stack.back; stack.popBack();
+                if (key != memo.key)
+                    throw new Exception(key ~ " is different from " ~ memo.key);
+
+                auto temp = result;
+                result = memo.nodes;
+                result[$ - 1].childs = temp;
+                break;
+            case '>':
+                result ~= Node(NodeType.partial, src[1..end].strip());
+                break;
+            case '=':
+                auto newTags = src[1..end - 1].split();
+                startTag = newTags[0];
+                endTag   = newTags[1];
+                break;
+            case '!':
+                break;
+            case '&', '{':
+                result ~= Node(NodeType.var, src[1..end].strip(), true);
+                break;
+            default:
+                result ~= Node(NodeType.var, src[0..end].strip());
+                break;
+            }
+
+            src = src[end + endTag.length..$];
+        }
+
+        return result;
+    }
+
+    unittest
+    {
+        {  // text and unescape
+            auto nodes = compile("Hello {{{name}}}");
+            assert(nodes[0].type == NodeType.text);
+            assert(nodes[0].text == "Hello ");
+            assert(nodes[1].type == NodeType.var);
+            assert(nodes[1].key  == "name");
+            assert(nodes[1].flag == true);
+        }
+        {  // section and escape
+            auto nodes = compile("{{#in_ca}}\nWell, ${{taxed_value}}, after taxes.\n{{/in_ca}}");
+            assert(nodes[0].type == NodeType.section);
+            assert(nodes[0].key  == "in_ca");
+            assert(nodes[0].flag == false);
+
+            auto childs = nodes[0].childs;
+            assert(childs[0].type == NodeType.text);
+            assert(childs[0].text == "\nWell, $");
+            assert(childs[1].type == NodeType.var);
+            assert(childs[1].key  == "taxed_value");
+            assert(childs[1].flag == false);
+            assert(childs[2].type == NodeType.text);
+            assert(childs[2].text == ", after taxes.\n");
+        }
+        {  // inverted section
+            auto nodes = compile("{{^repo}}\n  No repos :(\n{{/repo}}");
+            assert(nodes[0].type == NodeType.section);
+            assert(nodes[0].key  == "repo");
+            assert(nodes[0].flag == true);
+
+            auto childs = nodes[0].childs;
+            assert(childs[0].type == NodeType.text);
+            assert(childs[0].text == "\n  No repos :(\n");
+        }
+        {  // partial and set delimiter
+            auto nodes = compile("{{=<% %>=}}<%> erb_style %>");
+            assert(nodes[0].type == NodeType.partial);
+            assert(nodes[0].key  == "erb_style");
+        }
+    }
+
+
   private:
     /**
      * Mustache's node types
@@ -346,7 +462,7 @@ template Mustache(String = string)
          *   k = key string of tag
          *   f = invert? or escape?
          */
-        this(NodeType t, String k, lazy bool f = false)
+        this(NodeType t, String k, bool f = false)
         {
             type = t;
             key  = k;
