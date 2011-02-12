@@ -10,6 +10,7 @@
 module mustache;
 
 import std.conv;
+import std.string;
 import std.traits;
 import std.variant;
 
@@ -294,14 +295,14 @@ template Mustache(String = string)
 
   private:
     /**
-     * Mustache's tag types
+     * Mustache's node types
      */
-    enum TagType
+    enum NodeType
     {
-        nil,     ///
-        var,     /// {{}}
-        raw,     /// {{{}}} or {{&}}
-        section  /// {{#}} or {{^}}
+        text,     /// outside tag
+        var,      /// {{}} or {{{}}} or {{&}}
+        section,  /// {{#}} or {{^}}
+        partial   /// {{<}}
     }
 
 
@@ -310,32 +311,46 @@ template Mustache(String = string)
      */
     struct Node
     {
-        TagType type;  /// node type as Mustache tag
+        NodeType type;
 
         union
         {
-            struct Section
-            {
-                Node[] nodes;
-                bool   invert;
-            }
+            String text;
 
-            struct Variable
+            struct
             {
-                String text;
-                bool   escape;
+                String key;
+                bool   flag;    // true is inverted or true is unescape
+                Node[] childs;  // for section
             }
         }
 
+
         /**
-         * Constructs with argument type.
+         * Constructs with arguments.
          *
          * Params:
-         *   type = A Mustache tag type.
+         *   t = raw text
          */
-        this(TagType t)
+        this(String t)
+        {
+            type = NodeType.text;
+            text = t;
+        }
+
+        /**
+         * ditto
+         *
+         * Params:
+         *   t = Mustache's node type
+         *   k = key string of tag
+         *   f = invert? or escape?
+         */
+        this(NodeType t, String k, lazy bool f = false)
         {
             type = t;
+            key  = k;
+            flag = f;
         }
 
         /**
@@ -349,18 +364,44 @@ template Mustache(String = string)
             string result;
 
             switch (type) {
-            case TagType.section:
-                result ~= "Section";
+            case NodeType.text:
+                result = "[T : " ~ text ~ "]";
                 break;
-            case TagType.var:
-                result ~= "Variable";
+            case NodeType.var:
+                result = "[" ~ (flag ? "E" : "V") ~ " : " ~ key ~ "]";
                 break;
-            default:
-                result ~= "Raw Text";
+            case NodeType.section:
+                result = "[" ~ (flag ? "I" : "S") ~ " : " ~ key ~ ", [ ";
+                foreach (ref node; childs)
+                    result ~= node.toString() ~ " ";
+                result ~= "]";
+                break;
+            case NodeType.partial:
+                result = "[P : " ~ key ~ "]";
                 break;
             }
 
             return result;
+        }
+
+        unittest
+        {
+            Node section;
+            Node[] nodes, childs;
+
+            nodes ~= Node("Hi ");
+            nodes ~= Node(NodeType.var, "name");
+            nodes ~= Node(NodeType.partial, "redbull");
+            {
+                childs ~= Node("Ritsu is ");
+                childs ~= Node(NodeType.var, "attr", true);
+                section = Node(NodeType.section, "ritsu", false);
+                section.childs = childs;
+                nodes ~= section;
+            }
+
+            assert(to!string(nodes) == "[[T : Hi ], [V : name], [P : redbull], "
+                                       "[S : ritsu, [ [T : Ritsu is ] [E : attr] ]]");
         }
     }
 }
