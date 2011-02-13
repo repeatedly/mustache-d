@@ -24,10 +24,13 @@ template Mustache(String = string) if (isSomeString!(String))
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
 
 
+    /**
+     * Mustache option for rendering
+     */
     struct Option
     {
-        string ext  = ".mustache";
-        string path = ".";
+        string ext  = ".mustache";  // file extenstion
+        string path = ".";          // root path for file reading
     }
 
 
@@ -92,6 +95,9 @@ template Mustache(String = string) if (isSomeString!(String))
     }
 
 
+    /**
+     * Mustache context for setting values
+     */
     final class Context
     {
       private:
@@ -367,6 +373,18 @@ template Mustache(String = string) if (isSomeString!(String))
         }
     }
 
+
+    /**
+     * Renders $(D_PARAM src) using $(D_PARAM context).
+     *
+     * Params:
+     *  src     = original Template
+     *  context = mustache context for rendering
+     *  option  = stored path and ext
+     *
+     * Returns:
+     *  rendered result.
+     */
     String render(String src, in Context context, lazy Option option = Option.init)
     {
         return renderImpl(compile(src), context, option);
@@ -374,6 +392,9 @@ template Mustache(String = string) if (isSomeString!(String))
 
 
   private:
+    /**
+     * Implemention of render function.
+     */
     String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
     {
         // helper for HTML escape(original function from std.xml.encode)
@@ -531,6 +552,10 @@ template Mustache(String = string) if (isSomeString!(String))
         }
     }
 
+
+    /**
+     * Compiles $(D_PARAM src) into Intermediate Representation.
+     */
     Node[] compile(String src)
     {
         /**
@@ -590,6 +615,7 @@ template Mustache(String = string) if (isSomeString!(String))
                     end++;
                 break;
             case '>':
+                // TODO: If option argument exists, this function can read and compile partial file.
                 result ~= Node(NodeType.partial, src[1..end].strip());
                 break;
             case '=':
@@ -676,7 +702,7 @@ template Mustache(String = string) if (isSomeString!(String))
 
 
     /**
-     * Represents a Mustache node. Currently prototype.
+     * Intermediate Representation of Mustache
      */
     struct Node
     {
@@ -733,7 +759,7 @@ template Mustache(String = string) if (isSomeString!(String))
         {
             string result;
 
-            switch (type) {
+            final switch (type) {
             case NodeType.text:
                 result = "[T : \"" ~ to!string(text) ~ "\"]";
                 break;
