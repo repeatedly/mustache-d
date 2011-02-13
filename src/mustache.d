@@ -15,6 +15,7 @@ import std.string;
 import std.traits;
 import std.variant;
 
+import std.stdio; void main() { alias Mustache!(dstring) M; alias Mustache!(string) M2; writeln(M.Node.sizeof); }
 
 template Mustache(String = string)
 {
@@ -141,7 +142,7 @@ template Mustache(String = string)
         /**
          * Gets $(D_PARAM key)'s section value for Phobos friends.
          *
-         * Params*
+         * Params:
          *  key = key string to get
          *
          * Returns:
@@ -164,7 +165,7 @@ template Mustache(String = string)
                 v = p.func;
             case SectionType.list:
                 v = p.list;
-           }
+            }
 
             return v;
         }
@@ -277,7 +278,10 @@ template Mustache(String = string)
             }
         }
         { // value
-            String[String] aa = ["name" : "Ritsu"];
+            // workaround for dstring initialization
+            // String[String] aa = ["name" : "Ritsu"];
+            String[String] aa;
+            aa["name"] = "Ritsu";
 
             context["Value"] = aa;
             assert(context.fetchVar("Value")["name"] == aa["name"]);
@@ -296,6 +300,9 @@ template Mustache(String = string)
 
     Node[] compile(String src)
     {
+        /**
+         * State capturing for section
+         */
         struct Memo
         {
             String key;
@@ -311,7 +318,8 @@ template Mustache(String = string)
         while (true) {
             auto hit = src.indexOf(startTag);
             if (hit == -1) {  // rest template does not have tags
-                result ~= Node(src);
+                if (src.length > 0)
+                    result ~= Node(src);
                 break;
             } else {
                 if (hit > 0)
@@ -321,22 +329,23 @@ template Mustache(String = string)
 
             auto end = src.indexOf(endTag);
             if (end == -1)
-                throw new Exception("Tag missmatch");
+                throw new Exception("Mustache tag is not closed");
 
-            switch (src[0]) {
+            immutable type = src[0];
+            switch (type) {
             case '#', '^':
                 auto key = src[1..end].strip();
-                result  ~= Node(NodeType.section, key, src[0] == '^');
+                result  ~= Node(NodeType.section, key, type == '^');
                 stack   ~= Memo(key, result, src[end + endTag.length..$]);
                 result   = null;
                 break;
             case '/':
                 auto key = src[1..end].strip();
                 if (stack.empty)
-                    throw new Exception(key ~ " is unopened");
+                    throw new Exception(to!string(key) ~ " is unopened");
                 auto memo = stack.back; stack.popBack();
                 if (key != memo.key)
-                    throw new Exception(key ~ " is different from " ~ memo.key);
+                    throw new Exception(to!string(key) ~ " is different from " ~ to!string(memo.key));
 
                 auto temp = result;
                 result = memo.nodes;
@@ -353,7 +362,13 @@ template Mustache(String = string)
                 break;
             case '!':
                 break;
-            case '&', '{':
+            case '{':
+                auto pos = end + endTag.length;
+                if (pos >= src.length || src[pos] != '}')
+                    throw new Exception("Unescaped tag is mismatched");
+                result ~= Node(NodeType.var, src[1..end++].strip(), true);
+                break;
+            case '&':
                 result ~= Node(NodeType.var, src[1..end].strip(), true);
                 break;
             default:
@@ -484,43 +499,43 @@ template Mustache(String = string)
 
             switch (type) {
             case NodeType.text:
-                result = "[T : \"" ~ text ~ "\"]";
+                result = "[T : \"" ~ to!string(text) ~ "\"]";
                 break;
             case NodeType.var:
-                result = "[" ~ (flag ? "E" : "V") ~ " : \"" ~ key ~ "\"]";
+                result = "[" ~ (flag ? "E" : "V") ~ " : \"" ~ to!string(key) ~ "\"]";
                 break;
             case NodeType.section:
-                result = "[" ~ (flag ? "I" : "S") ~ " : \"" ~ key ~ "\", [ ";
+                result = "[" ~ (flag ? "I" : "S") ~ " : \"" ~ to!string(key) ~ "\", [ ";
                 foreach (ref node; childs)
                     result ~= node.toString() ~ " ";
-                result ~= "], \"" ~ source ~ "\"]";
+                result ~= "], \"" ~ to!string(source) ~ "\"]";
                 break;
             case NodeType.partial:
-                result = "[P : \"" ~ key ~ "\"]";
+                result = "[P : \"" ~ to!string(key) ~ "\"]";
                 break;
             }
 
             return result;
         }
+    }
 
-        unittest
+    unittest
+    {
+        Node section;
+        Node[] nodes, childs;
+
+        nodes ~= Node("Hi ");
+        nodes ~= Node(NodeType.var, "name");
+        nodes ~= Node(NodeType.partial, "redbull");
         {
-            Node section;
-            Node[] nodes, childs;
-
-            nodes ~= Node("Hi ");
-            nodes ~= Node(NodeType.var, "name");
-            nodes ~= Node(NodeType.partial, "redbull");
-            {
-                childs ~= Node("Ritsu is ");
-                childs ~= Node(NodeType.var, "attr", true);
-                section = Node(NodeType.section, "ritsu", false);
-                section.childs = childs;
-                nodes ~= section;
-            }
-
-            assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], `
-                                       `[S : "ritsu", [ [T : "Ritsu is "] [E : "attr"] ], ""]]`);
+            childs ~= Node("Ritsu is ");
+            childs ~= Node(NodeType.var, "attr", true);
+            section = Node(NodeType.section, "ritsu", false);
+            section.childs = childs;
+            nodes ~= section;
         }
+
+        assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], `
+                                   `[S : "ritsu", [ [T : "Ritsu is "] [E : "attr"] ], ""]]`);
     }
 }
