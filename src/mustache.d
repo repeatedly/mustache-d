@@ -24,6 +24,74 @@ template Mustache(String = string) if (isSomeString!(String))
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
 
 
+    struct Option
+    {
+        string ext  = ".mustache";
+        string path = ".";
+    }
+
+
+    final class Template
+    {
+      private:
+        Context        context_;
+        Option         option_;
+        Node[][string] caches_;
+        bool           enableCache_;
+
+
+      public:
+        this(bool enableCache = true)
+        {
+            context_     = new Context;
+            enableCache_ = enableCache;
+        }
+
+        this(Option option, bool enableCache = true)
+        {
+            option_ = option;
+            this(enableCache);
+        }
+
+        @property
+        {
+            Context context()
+            {
+                return context_;
+            }
+
+            void path(string path)
+            {
+                option_.path = path;
+            }
+
+            void extension(string ext)
+            {
+                option_.ext = ext;
+            }
+        }
+
+        String render(string name)
+        {
+            auto file = join(option_.path, name ~ option_.ext);
+
+            Node[] nodes;
+            if (enableCache_) {
+                auto p = file in caches_;
+                if (p)
+                    nodes = *p;
+            } else {
+                nodes = compile(readFile(file));
+            }
+
+            if (enableCache_)
+                caches_[file] = nodes;
+
+            return renderImpl(nodes, context_, option_);
+        }
+    }
+
+
     final class Context
     {
       private:
@@ -299,13 +367,14 @@ template Mustache(String = string) if (isSomeString!(String))
         }
     }
 
-    struct Option
+    String render(String src, in Context context, lazy Option option = Option.init)
     {
-        string ext  = ".mustache";
-        string path = ".";
+        return renderImpl(compile(src), context, option);
     }
 
-    String render(in Node[] nodes, in Context context, lazy Option option = Option.init)
+
+  private:
+    String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
     {
         // helper for HTML escape(original function from std.xml.encode)
         String encode(String text)
@@ -352,43 +421,40 @@ template Mustache(String = string) if (isSomeString!(String))
                 auto type = context.fetchableSectionType(node.key);
                 final switch (type) {
                 case Context.SectionType.nil:
-                    if (node.flag) result ~= render(node.childs, context, option);
+                    if (node.flag) result ~= renderImpl(node.childs, context, option);
                     break;
                 case Context.SectionType.var:
                     auto var = context.fetchVar(node.key);
                     if (!var) {
-                        if (node.flag) result ~= render(node.childs, context, option);
+                        if (node.flag) result ~= renderImpl(node.childs, context, option);
                     } else {
                         auto sub = new Context(context);
                         foreach (k, v; var)
                             sub[k] = v;
-                        result ~= render(node.childs, sub, option);
+                        result ~= renderImpl(node.childs, sub, option);
                     }
                     break;
                 case Context.SectionType.func:
                     auto func = context.fetchFunc(node.key);
                     if (!func)
-                        if (node.flag) result ~= render(node.childs, context, option);
+                        if (node.flag) result ~= renderImpl(node.childs, context, option);
                     else
-                        result ~= render(compile(func(node.source)), context, option);
+                        result ~= renderImpl(compile(func(node.source)), context, option);
                     break;
                 case Context.SectionType.list:
                     auto list = context.fetchList(node.key);
                     if (!list) {
-                        if (node.flag) result ~= render(node.childs, context, option);
+                        if (node.flag) result ~= renderImpl(node.childs, context, option);
                     } else {
                         foreach (sub; list)
-                            result ~= render(node.childs, sub, option);
+                            result ~= renderImpl(node.childs, sub, option);
                     }
                     break;
                 }
                 break;
             case NodeType.partial:
-                static if (is(String == string))
-                    auto src = cast(string)read(join(option.path, to!string(node.key) ~ option.ext));
-                else
-                    auto src = to!String(cast(string)read(join(option.path, to!string(node.key) ~ option.ext)));
-                result ~= render(compile(src), context, option);
+                auto src = readFile(join(option.path, to!string(node.key) ~ option.ext));
+                result ~= renderImpl(compile(src), context, option);
                 break;
             }
         }
@@ -396,15 +462,28 @@ template Mustache(String = string) if (isSomeString!(String))
         return result;
     }
 
+
+    /*
+     * Helper for file reading
+     */
+    String readFile(string file)
+    {
+        static if (is(String == string))
+            return cast(string)read(file);
+        else
+            return to!String(cast(string)read(file));
+    }
+
+
     unittest
     {
         { // var
             auto context = new Context;
             context["name"] = "Ritsu & Mio";
 
-            assert(render(compile("Hello {{name}}"),   context) == "Hello Ritsu &amp; Mio");
-            assert(render(compile("Hello {{&name}}"),  context) == "Hello Ritsu & Mio");
-            assert(render(compile("Hello {{{name}}}"), context) == "Hello Ritsu & Mio");
+            assert(render("Hello {{name}}",   context) == "Hello Ritsu &amp; Mio");
+            assert(render("Hello {{&name}}",  context) == "Hello Ritsu & Mio");
+            assert(render("Hello {{{name}}}", context) == "Hello Ritsu & Mio");
         }
         { // list section
             auto context = new Context;
@@ -413,7 +492,7 @@ template Mustache(String = string) if (isSomeString!(String))
                 sub["name"] = name;
             }
 
-            assert(render(compile("{{#repo}}\n  <b>{{name}}</b>\n{{/repo}}"), context) ==
+            assert(render("{{#repo}}\n  <b>{{name}}</b>\n{{/repo}}", context) ==
                    "<b>resque</b>\n<b>hub</b>\n<b>rip</b>\n");
         }
         { // var section
@@ -421,21 +500,21 @@ template Mustache(String = string) if (isSomeString!(String))
             String[String] aa = ["name" : "Ritsu"];
             context["person?"] = aa;
 
-            assert(render(compile("{{#person?}}\n  Hi {{name}}!\n{{/person?}}"), context) ==
+            assert(render("{{#person?}}\n  Hi {{name}}!\n{{/person?}}", context) ==
                    "Hi Ritsu!\n");
         }
         { // inverted section
             String temp  = "{{#repo}}\n  <b>{{name}}</b>\n{{/repo}}\n{{^repo}}\n  No repos :(\n{{/repo}}";
             auto context = new Context;
-            assert(render(compile(temp), context) == "No repos :(\n");
+            assert(render(temp, context) == "No repos :(\n");
 
             String[String] aa;
             context["person?"] = aa;
-            assert(render(compile(temp), context) == "No repos :(\n");
+            assert(render(temp, context) == "No repos :(\n");
         }
         { // comment
             auto context = new Context;
-            assert(render(compile("<h1>Today{{! ignore me }}.</h1>"), context) == "<h1>Today.</h1>");            
+            assert(render("<h1>Today{{! ignore me }}.</h1>", context) == "<h1>Today.</h1>");
         }
         { // partial
             std.file.write("user.mustache", "<strong>{{name}}</strong>\n");
@@ -447,8 +526,7 @@ template Mustache(String = string) if (isSomeString!(String))
                 sub["name"] = name;
             }
 
-            //write(render(compile("<h2>Names</h2>\n{{#names}}\n  {{> user}}\n{{/names}}"), context));
-            assert(render(compile("<h2>Names</h2>\n{{#names}}\n  {{> user}}\n{{/names}}"), context) ==
+            assert(render("<h2>Names</h2>\n{{#names}}\n  {{> user}}\n{{/names}}", context) ==
                    "<h2>Names</h2>\n<strong>Ritsu</strong>\n<strong>Mio</strong>\n");
         }
     }
@@ -585,7 +663,6 @@ template Mustache(String = string) if (isSomeString!(String))
     }
 
 
-  private:
     /**
      * Mustache's node types
      */
