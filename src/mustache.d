@@ -19,7 +19,7 @@ import std.traits;   // isSomeString, isAssociativeArray
 import std.variant;  // Variant
 
 
-template Mustache(String = string) if (isSomeString!(String))
+template MustacheImpl(String = string) if (isSomeString!(String))
 {
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
 
@@ -34,6 +34,9 @@ template Mustache(String = string) if (isSomeString!(String))
     }
 
 
+    /**
+     * Simple interface and having in-memory cache
+     */
     final class Template
     {
       private:
@@ -76,19 +79,20 @@ template Mustache(String = string) if (isSomeString!(String))
 
         String render(string name)
         {
-            auto file = join(option_.path, name ~ option_.ext);
-
+            String file = join(option_.path, name ~ option_.ext);
             Node[] nodes;
+
             if (enableCache_) {
                 auto p = file in caches_;
-                if (p)
+                if (p) {
                     nodes = *p;
+                } else {
+                    nodes = compile(readFile(file));
+                    caches_[file] = nodes;
+                }
             } else {
                 nodes = compile(readFile(file));
             }
-
-            if (enableCache_)
-                caches_[file] = nodes;
 
             return renderImpl(nodes, context_, option_);
         }
