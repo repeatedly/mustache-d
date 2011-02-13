@@ -20,8 +20,8 @@ void main()
 {
     alias MustacheImpl!(string) Mustache;
 
-    auto mustache = new Mustache.Template;
-    auto context  = mustache.context;
+    auto mustache = Mustache.Template(false);
+    auto context  = new Mustache.Context;
 
     context["width"] = 4968;
     foreach (ref project; projects) {
@@ -32,5 +32,5 @@ void main()
     }
 
     mustache.path = "example";
-    writeln(mustache.render("projects"));
+    write(mustache.render("projects", context));
 }

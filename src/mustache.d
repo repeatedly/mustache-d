@@ -35,21 +35,28 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
 
     /**
-     * Simple interface and having in-memory cache
+     * Cache level for compile result
      */
-    final class Template
+    enum CacheLevel
+    {
+        no, check, force
+    }
+
+
+    /**
+     * Public interface and having in-memory cache
+     */
+    struct Template
     {
       private:
-        Context        context_;
         Option         option_;
         Node[][string] caches_;
-        bool           enableCache_;
+        bool           enableCache_;  // TODO: Replace with enum CacheLevel
 
 
       public:
         this(bool enableCache = true)
         {
-            context_     = new Context;
             enableCache_ = enableCache;
         }
 
@@ -61,11 +68,6 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
         @property
         {
-            Context context()
-            {
-                return context_;
-            }
-
             void path(string path)
             {
                 option_.path = path;
@@ -77,7 +79,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             }
         }
 
-        String render(string name)
+        String render(string name, Context context)
         {
             String file = join(option_.path, name ~ option_.ext);
             Node[] nodes;
@@ -94,7 +96,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                 nodes = compile(readFile(file));
             }
 
-            return renderImpl(nodes, context_, option_);
+            return renderImpl(nodes, context, option_);
         }
     }
 
