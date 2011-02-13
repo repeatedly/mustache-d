@@ -15,10 +15,12 @@ import std.string;
 import std.traits;
 import std.variant;
 
-import std.stdio; void main() { alias Mustache!(dstring) M; alias Mustache!(string) M2; writeln(M.Node.sizeof); }
 
-template Mustache(String = string)
+template Mustache(String = string) if (isSomeString!(String))
 {
+    static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
+
+
     final class Context
     {
       private:
@@ -284,10 +286,7 @@ template Mustache(String = string)
             aa["name"] = "Ritsu";
 
             context["Value"] = aa;
-            assert(context.fetchVar("Value")["name"] == aa["name"]);
-            // @@@BUG@@@ Why following assert raises signal?
-            //assert(context.fetchVar("Value") == aa);
-            //writeln(context.fetchVar("Value") == aa);  // -> true
+            assert(context.fetchVar("Value") == cast(const)aa);
         }
         { // func
             auto func = (String str) { return "<b>" ~ str ~ "</b>"; };
