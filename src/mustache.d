@@ -15,7 +15,6 @@ import std.string;
 import std.traits;
 import std.variant;
 
-import std.stdio; void main() { alias Mustache!(string) M; writeln(M.Node.sizeof); }
 
 template Mustache(String = string)
 {
@@ -301,6 +300,7 @@ template Mustache(String = string)
         {
             String key;
             Node[] nodes;
+            String source;
         }
 
         String startTag = "{{";
@@ -311,8 +311,7 @@ template Mustache(String = string)
         while (true) {
             auto hit = src.indexOf(startTag);
             if (hit == -1) {  // rest template does not have tags
-                if (hit > 0)
-                    result ~= Node(src);
+                result ~= Node(src);
                 break;
             } else {
                 if (hit > 0)
@@ -328,20 +327,21 @@ template Mustache(String = string)
             case '#', '^':
                 auto key = src[1..end].strip();
                 result  ~= Node(NodeType.section, key, src[0] == '^');
-                stack   ~= Memo(key, result);
+                stack   ~= Memo(key, result, src[end + endTag.length..$]);
                 result   = null;
                 break;
             case '/':
                 auto key = src[1..end].strip();
                 if (stack.empty)
                     throw new Exception(key ~ " is unopened");
-                Memo memo = stack.back; stack.popBack();
+                auto memo = stack.back; stack.popBack();
                 if (key != memo.key)
                     throw new Exception(key ~ " is different from " ~ memo.key);
 
                 auto temp = result;
                 result = memo.nodes;
                 result[$ - 1].childs = temp;
+                result[$ - 1].source = memo.source[0..src.ptr - memo.source.ptr - endTag.length];
                 break;
             case '>':
                 result ~= Node(NodeType.partial, src[1..end].strip());
@@ -379,9 +379,10 @@ template Mustache(String = string)
         }
         {  // section and escape
             auto nodes = compile("{{#in_ca}}\nWell, ${{taxed_value}}, after taxes.\n{{/in_ca}}");
-            assert(nodes[0].type == NodeType.section);
-            assert(nodes[0].key  == "in_ca");
-            assert(nodes[0].flag == false);
+            assert(nodes[0].type   == NodeType.section);
+            assert(nodes[0].key    == "in_ca");
+            assert(nodes[0].flag   == false);
+            assert(nodes[0].source == "\nWell, ${{taxed_value}}, after taxes.\n");
 
             auto childs = nodes[0].childs;
             assert(childs[0].type == NodeType.text);
@@ -437,8 +438,9 @@ template Mustache(String = string)
             struct
             {
                 String key;
-                bool   flag;    // true is inverted or true is unescape
-                Node[] childs;  // for section
+                bool   flag;    // true is inverted or unescape
+                Node[] childs;  // for list section
+                String source;  // for lambda section
             }
         }
 
@@ -482,19 +484,19 @@ template Mustache(String = string)
 
             switch (type) {
             case NodeType.text:
-                result = "[T : " ~ text ~ "]";
+                result = "[T : \"" ~ text ~ "\"]";
                 break;
             case NodeType.var:
-                result = "[" ~ (flag ? "E" : "V") ~ " : " ~ key ~ "]";
+                result = "[" ~ (flag ? "E" : "V") ~ " : \"" ~ key ~ "\"]";
                 break;
             case NodeType.section:
-                result = "[" ~ (flag ? "I" : "S") ~ " : " ~ key ~ ", [ ";
+                result = "[" ~ (flag ? "I" : "S") ~ " : \"" ~ key ~ "\", [ ";
                 foreach (ref node; childs)
                     result ~= node.toString() ~ " ";
-                result ~= "]";
+                result ~= "], \"" ~ source ~ "\"]";
                 break;
             case NodeType.partial:
-                result = "[P : " ~ key ~ "]";
+                result = "[P : \"" ~ key ~ "\"]";
                 break;
             }
 
@@ -517,8 +519,8 @@ template Mustache(String = string)
                 nodes ~= section;
             }
 
-            assert(to!string(nodes) == "[[T : Hi ], [V : name], [P : redbull], "
-                                       "[S : ritsu, [ [T : Ritsu is ] [E : attr] ]]");
+            assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], `
+                                       `[S : "ritsu", [ [T : "Ritsu is "] [E : "attr"] ], ""]]`);
         }
     }
 }
