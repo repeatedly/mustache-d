@@ -15,6 +15,7 @@ import std.string;
 import std.traits;
 import std.variant;
 
+import std.stdio; void main() { alias Mustache!(string) M; writeln(M.Node.sizeof); }
 
 template Mustache(String = string)
 {
@@ -23,7 +24,7 @@ template Mustache(String = string)
       private:
         enum SectionType
         {
-            nil, value, func, list
+            nil, var, func, list
         }
 
         struct Section
@@ -32,15 +33,15 @@ template Mustache(String = string)
 
             union
             {
-                String[String]          value;
+                String[String]          var;
                 String delegate(String) func;  // String delegate(String) delegate()?
                 Context[]               list;
             }
 
             this(String[String] v)
             {
-                type  = SectionType.value;
-                value = v;
+                type  = SectionType.var;
+                var = v;
             }
 
             this(String delegate(String) f)
@@ -61,8 +62,8 @@ template Mustache(String = string)
                 final switch (type) {
                 case SectionType.nil:
                     return true;
-                case SectionType.value:
-                    return !value.length;  // Why?
+                case SectionType.var:
+                    return !var.length;  // Why?
                 case SectionType.func:
                     return func is null;
                 case SectionType.list:
@@ -158,8 +159,8 @@ template Mustache(String = string)
             final switch (p.type) {
             case SectionType.nil:
                 v = Variant.init;
-             case SectionType.value:
-                v = p.value;
+             case SectionType.var:
+                v = p.var;
             case SectionType.func:
                 v = p.func;
             case SectionType.list:
@@ -241,9 +242,9 @@ template Mustache(String = string)
             return mixin("parent.fetch" ~ name ~ "(key)");
         }
 
-        alias fetchSection!(Context[],               SectionType.list,  "List")  fetchList;
-        alias fetchSection!(String delegate(String), SectionType.func,  "Func")  fetchFunc;
-        alias fetchSection!(String[String],          SectionType.value, "Value") fetchValue;
+        alias fetchSection!(Context[],               SectionType.list, "List") fetchList;
+        alias fetchSection!(String delegate(String), SectionType.func, "Func") fetchFunc;
+        alias fetchSection!(String[String],          SectionType.var,  "Var")  fetchVar;
     }
 
     unittest
@@ -280,10 +281,10 @@ template Mustache(String = string)
             String[String] aa = ["name" : "Ritsu"];
 
             context["Value"] = aa;
-            assert(context.fetchValue("Value")["name"] == aa["name"]);
+            assert(context.fetchVar("Value")["name"] == aa["name"]);
             // @@@BUG@@@ Why following assert raises signal?
-            //assert(context.fetchValue("Value") == aa);
-            //writeln(context.fetchValue("Value") == aa);  // -> true
+            //assert(context.fetchVar("Value") == aa);
+            //writeln(context.fetchVar("Value") == aa);  // -> true
         }
         { // func
             auto func = (String str) { return "<b>" ~ str ~ "</b>"; };
