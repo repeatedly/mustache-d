@@ -521,10 +521,8 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     @trusted
     String readFile(string file)
     {
-        static if (is(String == string))
-            return cast(string)read(file);
-        else
-            return to!String(cast(string)read(file));
+        // cast checks character encoding alignment.
+        return cast(String)read(file);
     }
 
 
