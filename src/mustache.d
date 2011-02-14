@@ -16,7 +16,6 @@ import std.file;     // read
 import std.path;     // join
 import std.string;   // strip, stripl
 import std.traits;   // isSomeString, isAssociativeArray
-import std.variant;  // Variant
 
 
 /**
@@ -37,21 +36,22 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
 
     /**
-     * Mustache option for rendering
+     * Caching level for compile result
      */
-    struct Option
+    enum CacheLevel
     {
-        string ext  = ".mustache";  // file extenstion
-        string path = ".";          // root path for file reading
+        no, check, once
     }
 
 
     /**
-     * Cache level for compile result
+     * Mustache option for rendering
      */
-    enum CacheLevel
+    struct Option
     {
-        no, check, force
+        string ext       = ".mustache";       /// template file extenstion
+        string path      = ".";               /// root path for file searching
+        CacheLevel level = CacheLevel.check;  /// 
     }
 
 
@@ -68,16 +68,9 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
       public:
         @safe
-        this(bool enableCache = true)
-        {
-            enableCache_ = enableCache;
-        }
-
-        @safe
-        this(Option option, bool enableCache = true)
+        this(Option option)
         {
             option_ = option;
-            this(enableCache);
         }
 
         @property @safe
@@ -98,7 +91,11 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             String file = join(option_.path, name ~ option_.ext);
             Node[] nodes;
 
-            if (enableCache_) {
+            final switch (option_.level) {
+            case CacheLevel.no:
+                nodes = compile(readFile(file));
+                break;
+            case CacheLevel.check:
                 auto p = file in caches_;
                 if (p) {
                     nodes = *p;
@@ -106,8 +103,9 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                     nodes = compile(readFile(file));
                     caches_[file] = nodes;
                 }
-            } else {
-                nodes = compile(readFile(file));
+                break;
+            case CacheLevel.once:
+                break;
             }
 
             return renderImpl(nodes, context, option_);
@@ -246,37 +244,6 @@ template MustacheImpl(String = string) if (isSomeString!(String))
         }
 
         /**
-         * Gets $(D_PARAM key)'s section value for Phobos friends.
-         *
-         * Params:
-         *  key = key string to get
-         *
-         * Returns:
-         *  section wrapped Variant.
-         */
-        Variant section(String key)
-        {
-            auto p = key in sections;
-            if (!p)
-                return Variant.init;
-
-            Variant v = void;
-
-            final switch (p.type) {
-            case SectionType.nil:
-                v = Variant.init;
-             case SectionType.var:
-                v = p.var;
-            case SectionType.func:
-                v = p.func;
-            case SectionType.list:
-                v = p.list;
-            }
-
-            return v;
-        }
-
-        /**
          * Adds new context to $(D_PARAM key)'s section. This method overwrites with
          * list type if you already assigned other type to $(D_PARAM key)'s section.
          *
@@ -344,7 +311,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
         {
             auto result = key in sections;
             if (result !is null && result.type == type)
-                return result.empty ? null : mixin("result." ~ to!String(type));
+                return result.empty ? null : mixin("result." ~ to!string(type));
 
             if (parent is null)
                 return null;

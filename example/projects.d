@@ -20,8 +20,8 @@ void main()
 {
     alias MustacheImpl!(string) Mustache;
 
-    auto mustache = Mustache.Template(false);
-    auto context  = new Mustache.Context;
+    Mustache.Template mustache;
+    auto context = new Mustache.Context;
 
     context["width"] = 4968;
     foreach (ref project; projects) {
