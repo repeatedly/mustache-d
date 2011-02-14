@@ -19,6 +19,18 @@ import std.traits;   // isSomeString, isAssociativeArray
 import std.variant;  // Variant
 
 
+/**
+ * Exception representation for Mustache
+ */
+class MustacheException : Exception
+{
+    this(string messaage)
+    {
+        super(messaage);
+    }
+}
+
+
 template MustacheImpl(String = string) if (isSomeString!(String))
 {
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
@@ -593,7 +605,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
             auto end = src.indexOf(endTag);
             if (end == -1)
-                throw new Exception("Mustache tag is not closed");
+                throw new MustacheException("Mustache tag is not closed");
 
             immutable type = src[0];
             switch (type) {
@@ -606,10 +618,10 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             case '/':
                 auto key = src[1..end].strip();
                 if (stack.empty)
-                    throw new Exception(to!string(key) ~ " is unopened");
+                    throw new MustacheException(to!string(key) ~ " is unopened");
                 auto memo = stack.back; stack.popBack();
                 if (key != memo.key)
-                    throw new Exception(to!string(key) ~ " is different from " ~ to!string(memo.key));
+                    throw new MustacheException(to!string(key) ~ " is different from expected " ~ to!string(memo.key));
 
                 auto temp = result;
                 result = memo.nodes;
@@ -634,7 +646,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             case '{':
                 auto pos = end + endTag.length;
                 if (pos >= src.length || src[pos] != '}')
-                    throw new Exception("Unescaped tag is mismatched");
+                    throw new MustacheException("Unescaped tag is mismatched");
                 result ~= Node(NodeType.var, src[1..end++].strip(), true);
                 break;
             case '&':
