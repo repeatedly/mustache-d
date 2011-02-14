@@ -67,18 +67,20 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
 
       public:
+        @safe
         this(bool enableCache = true)
         {
             enableCache_ = enableCache;
         }
 
+        @safe
         this(Option option, bool enableCache = true)
         {
             option_ = option;
             this(enableCache);
         }
 
-        @property
+        @property @safe
         {
             void path(string path)
             {
@@ -135,25 +137,29 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                 Context[]               list;
             }
 
-            this(String[String] v)
+            @safe nothrow
             {
-                type  = SectionType.var;
-                var = v;
-            }
+                this(String[String] v)
+                {
+                    type  = SectionType.var;
+                    var = v;
+                }
 
-            this(String delegate(String) f)
-            {
-                type = SectionType.func;
-                func = f;
-            }
+                this(String delegate(String) f)
+                {
+                    type = SectionType.func;
+                    func = f;
+                }
 
-            this(Context c)
-            {
-                type = SectionType.list;
-                list = [c];
+                this(Context c)
+                {
+                    type = SectionType.list;
+                    list = [c];
+                }
             }
 
             /* nothrow : AA's length is not nothrow */
+            @trusted
             bool empty() const
             {
                 final switch (type) {
@@ -175,7 +181,8 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
 
       public:
-        this(in Context context = null)
+        @safe
+        nothrow this(in Context context = null)
         {
             parent = context;
         }
@@ -192,6 +199,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          * Throws:
          *  a RangeError if $(D_PARAM key) does not exist.
          */
+        @safe
         nothrow String opIndex(String key) const
         {
             return variables[key];
@@ -207,6 +215,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  value = some type value to assign
          *  key   = key string to assign
          */
+        @trusted
         void opIndexAssign(T)(T value, String key)
         {
             static if (isAssociativeArray!(T))
@@ -278,6 +287,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          * Returns:
          *  new Context object that added to $(D_PARAM key) section list. 
          */
+        @trusted
         Context addSubContext(String key, lazy size_t size = 1)
         {
             auto c = new Context(this);
@@ -303,6 +313,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          * Returns:
          *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
+        @safe
         nothrow String fetch(String key) const
         {
             auto result = key in variables;
@@ -315,6 +326,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             return parent.fetch(key);
         }
 
+        @safe
         nothrow SectionType fetchableSectionType(String key) const
         {
             auto result = key in sections;
@@ -327,6 +339,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             return parent.fetchableSectionType(key);
         }
 
+        @trusted
         /* nothrow */ const(Result) fetchSection(Result, SectionType type, string name)(String key) const
         {
             auto result = key in sections;
@@ -505,6 +518,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     /*
      * Helper for file reading
      */
+    @trusted
     String readFile(string file)
     {
         static if (is(String == string))
@@ -576,9 +590,20 @@ template MustacheImpl(String = string) if (isSomeString!(String))
      */
     Node[] compile(String src)
     {
-        /**
-         * State capturing for section
-         */
+        String sTag = "{{";
+        String eTag = "}}";
+
+        void setDelimiter(String src)
+        {
+            auto i = src.indexOf(" ");
+            if (i == -1)
+                throw new MustacheException("Delimiter tag needs white-space");
+
+            sTag = src[0..i];
+            eTag = src[i + 1..$].stripl();
+        }
+
+        // State capturing for section
         struct Memo
         {
             String key;
@@ -586,13 +611,11 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             String source;
         }
 
-        String startTag = "{{";
-        String endTag   = "}}";
         Node[] result;
-        Memo[] stack;  // for nested section
+        Memo[] stack;   // for nested section
 
         while (true) {
-            auto hit = src.indexOf(startTag);
+            auto hit = src.indexOf(sTag);
             if (hit == -1) {  // rest template does not have tags
                 if (src.length > 0)
                     result ~= Node(src);
@@ -600,10 +623,10 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             } else {
                 if (hit > 0)
                     result ~= Node(stack.empty ? src[0..hit] : src[0..hit].stripl());
-                src = src[hit + startTag.length..$];
+                src = src[hit + sTag.length..$];
             }
 
-            auto end = src.indexOf(endTag);
+            auto end = src.indexOf(eTag);
             if (end == -1)
                 throw new MustacheException("Mustache tag is not closed");
 
@@ -612,7 +635,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             case '#', '^':
                 auto key = src[1..end].strip();
                 result  ~= Node(NodeType.section, key, type == '^');
-                stack   ~= Memo(key, result, src[end + endTag.length..$]);
+                stack   ~= Memo(key, result, src[end + eTag.length..$]);
                 result   = null;
                 break;
             case '/':
@@ -626,9 +649,9 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                 auto temp = result;
                 result = memo.nodes;
                 result[$ - 1].childs = temp;
-                result[$ - 1].source = memo.source[0..src.ptr - memo.source.ptr - endTag.length];
+                result[$ - 1].source = memo.source[0..src.ptr - memo.source.ptr - eTag.length];
 
-                auto pos = end + endTag.length;
+                auto pos = end + eTag.length;
                 if (pos < src.length && isspace(src[pos]))
                     end++;
                 break;
@@ -637,14 +660,12 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                 result ~= Node(NodeType.partial, src[1..end].strip());
                 break;
             case '=':
-                auto newTags = src[1..end - 1].split();
-                startTag = newTags[0];
-                endTag   = newTags[1];
+                setDelimiter(src[1..end - 1]);
                 break;
             case '!':
                 break;
             case '{':
-                auto pos = end + endTag.length;
+                auto pos = end + eTag.length;
                 if (pos >= src.length || src[pos] != '}')
                     throw new MustacheException("Unescaped tag is mismatched");
                 result ~= Node(NodeType.var, src[1..end++].strip(), true);
@@ -657,7 +678,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                 break;
             }
 
-            src = src[end + endTag.length..$];
+            src = src[end + eTag.length..$];
         }
 
         return result;
@@ -746,6 +767,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          * Params:
          *   t = raw text
          */
+        @safe
         this(String t)
         {
             type = NodeType.text;
@@ -760,6 +782,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *   k = key string of tag
          *   f = invert? or escape?
          */
+        @safe
         this(NodeType t, String k, bool f = false)
         {
             type = t;
