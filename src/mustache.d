@@ -137,7 +137,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          * Returns:
          *  rendered result.
          */
-        String render(string name, Context context)
+        String render(in string name, in Context context)
         {
             String file = join(option_.path, name ~ option_.ext);
             Node[] nodes;
@@ -250,7 +250,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  a RangeError if $(D_PARAM key) does not exist.
          */
         @safe
-        String opIndex(String key) const nothrow
+        String opIndex(in String key) const nothrow
         {
             return variables[key];
         }
@@ -266,7 +266,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  key   = key string to assign
          */
         @trusted
-        void opIndexAssign(T)(T value, String key)
+        void opIndexAssign(T)(T value, in String key)
         {
             static if (isAssociativeArray!(T))
             {
@@ -307,7 +307,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  new Context object that added to $(D_PARAM key) section list. 
          */
         @trusted
-        Context addSubContext(String key, lazy size_t size = 1)
+        Context addSubContext(in String key, lazy size_t size = 1)
         {
             auto c = new Context(this);
             auto p = key in sections;
@@ -333,7 +333,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
         @safe
-        String fetch(String key) const nothrow
+        String fetch(in String key) const nothrow
         {
             auto result = key in variables;
             if (result !is null)
@@ -346,7 +346,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
         }
 
         @safe
-        SectionType fetchableSectionType(String key) const nothrow
+        SectionType fetchableSectionType(in String key) const nothrow
         {
             auto result = key in sections;
             if (result !is null)
@@ -359,7 +359,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
         }
 
         @trusted
-        const(Result) fetchSection(Result, SectionType type, string name)(String key) const /* nothrow */
+        const(Result) fetchSection(Result, SectionType type, string name)(in String key) const /* nothrow */
         {
             auto result = key in sections;
             if (result !is null && result.type == type)
