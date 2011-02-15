@@ -132,7 +132,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *
          * Params:
          *  name    = template name without extenstion
-         *  context = value sets for rendering
+         *  context = Mustache context for rendering
          *
          * Returns:
          *  rendered result.
@@ -232,7 +232,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
       public:
         @safe
-        nothrow this(in Context context = null)
+        this(in Context context = null) nothrow
         {
             parent = context;
         }
@@ -250,7 +250,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  a RangeError if $(D_PARAM key) does not exist.
          */
         @safe
-        nothrow String opIndex(String key) const
+        String opIndex(String key) const nothrow
         {
             return variables[key];
         }
@@ -333,7 +333,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
          *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
         @safe
-        nothrow String fetch(String key) const
+        String fetch(String key) const nothrow
         {
             auto result = key in variables;
             if (result !is null)
@@ -346,7 +346,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
         }
 
         @safe
-        nothrow SectionType fetchableSectionType(String key) const
+        SectionType fetchableSectionType(String key) const nothrow
         {
             auto result = key in sections;
             if (result !is null)
@@ -359,7 +359,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
         }
 
         @trusted
-        /* nothrow */ const(Result) fetchSection(Result, SectionType type, string name)(String key) const
+        const(Result) fetchSection(Result, SectionType type, string name)(String key) const /* nothrow */
         {
             auto result = key in sections;
             if (result !is null && result.type == type)
@@ -428,8 +428,8 @@ template MustacheImpl(String = string) if (isSomeString!(String))
      * Renders $(D_PARAM src) using $(D_PARAM context).
      *
      * Params:
-     *  src     = original Template
-     *  context = mustache context for rendering
+     *  src     = original template content
+     *  context = Mustache context for rendering
      *  option  = stored path and ext
      *
      * Returns:
@@ -448,7 +448,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
     {
         // helper for HTML escape(original function from std.xml.encode)
-        String encode(String text)
+        String encode(in String text)
         {
             size_t index;
             auto   result = appender!String();
@@ -777,34 +777,34 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             }
         }
 
-
-        /**
-         * Constructs with arguments.
-         *
-         * Params:
-         *   t = raw text
-         */
-        @safe
-        this(String t)
+        @safe nothrow
         {
-            type = NodeType.text;
-            text = t;
-        }
+            /**
+             * Constructs with arguments.
+             *
+             * Params:
+             *   t = raw text
+             */
+            this(String t)
+            {
+                type = NodeType.text;
+                text = t;
+            }
 
-        /**
-         * ditto
-         *
-         * Params:
-         *   t = Mustache's node type
-         *   k = key string of tag
-         *   f = invert? or escape?
-         */
-        @safe
-        this(NodeType t, String k, bool f = false)
-        {
-            type = t;
-            key  = k;
-            flag = f;
+            /**
+             * ditto
+             *
+             * Params:
+             *   t = Mustache's node type
+             *   k = key string of tag
+             *   f = invert? or escape?
+             */
+            this(NodeType t, String k, bool f = false)
+            {
+                type = t;
+                key  = k;
+                flag = f;
+            }
         }
 
         /**
