@@ -73,16 +73,36 @@ template MustacheImpl(String = string) if (isSomeString!(String))
             option_ = option;
         }
 
-        @property @safe
+        @property @safe nothrow
         {
+            string ext() const
+            {
+                return option_.ext;
+            }
+
+            void ext(string ext)
+            {
+                option_.ext = ext;
+            }
+
+            string path() const
+            {
+                return option_.path;
+            }
+
             void path(string path)
             {
                 option_.path = path;
             }
 
-            void extension(string ext)
+            CacheLevel cacheLevel() const
             {
-                option_.ext = ext;
+                return option_.level;
+            }
+
+            void cacheLevel(CacheLevel level)
+            {
+                option_.level = level;
             }
         }
 
