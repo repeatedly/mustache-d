@@ -37,7 +37,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
 
     /**
-     * Caching level for compile result
+     * Cache level for compile result
      */
     enum CacheLevel
     {
@@ -51,7 +51,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     struct Option
     {
         string     ext   = ".mustache";       /// template file extenstion
-        string     path  = ".";               /// root path for file searching
+        string     path  = ".";               /// root path for template file searching
         CacheLevel level = CacheLevel.check;  /// 
     }
 
@@ -62,6 +62,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     struct Template
     {
       private:
+        // Internal cache
         struct Cache
         {
             Node[]  compiled;
@@ -74,44 +75,68 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
       public:
         @safe
-        this(Option option)
+        this(Option option) nothrow
         {
             option_ = option;
         }
 
         @property @safe nothrow
         {
+            /**
+             * Property for template extenstion
+             */
             string ext() const
             {
                 return option_.ext;
             }
 
+            /// ditto
             void ext(string ext)
             {
                 option_.ext = ext;
             }
 
+            /**
+             * Property for template searche path
+             */
             string path() const
             {
                 return option_.path;
             }
 
+            /// ditto
             void path(string path)
             {
                 option_.path = path;
             }
 
+            /**
+             * Property for cache level
+             */
             CacheLevel cacheLevel() const
             {
                 return option_.level;
             }
 
+            /// ditto
             void cacheLevel(CacheLevel level)
             {
                 option_.level = level;
             }
         }
 
+        /**
+         * Renders $(D_PARAM name) template with $(D_PARAM context).
+         *
+         * This method stores compile result in memory if you set check or once CacheLevel.
+         *
+         * Params:
+         *  name    = template name without extenstion
+         *  context = value sets for rendering
+         *
+         * Returns:
+         *  rendered result.
+         */
         String render(string name, Context context)
         {
             String file = join(option_.path, name ~ option_.ext);
