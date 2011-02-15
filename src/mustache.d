@@ -31,15 +31,16 @@ class MustacheException : Exception
 }
 
 
-template MustacheImpl(String = string) if (isSomeString!(String))
+struct MustacheImpl(String = string) if (isSomeString!(String))
 {
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
 
 
+  public:
     /**
      * Cache level for compile result
      */
-    enum CacheLevel
+    static enum CacheLevel
     {
         no, check, once
     }
@@ -48,7 +49,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     /**
      * Mustache option for rendering
      */
-    struct Option
+    static struct Option
     {
         string     ext   = ".mustache";       /// template file extenstion
         string     path  = ".";               /// root path for template file searching
@@ -57,118 +58,9 @@ template MustacheImpl(String = string) if (isSomeString!(String))
 
 
     /**
-     * Public interface and having in-memory cache
-     */
-    struct Template
-    {
-      private:
-        // Internal cache
-        struct Cache
-        {
-            Node[]  compiled;
-            SysTime modified;
-        }
-
-        Option        option_;
-        Cache[string] caches_;
-
-
-      public:
-        @safe
-        this(Option option) nothrow
-        {
-            option_ = option;
-        }
-
-        @property @safe nothrow
-        {
-            /**
-             * Property for template extenstion
-             */
-            string ext() const
-            {
-                return option_.ext;
-            }
-
-            /// ditto
-            void ext(string ext)
-            {
-                option_.ext = ext;
-            }
-
-            /**
-             * Property for template searche path
-             */
-            string path() const
-            {
-                return option_.path;
-            }
-
-            /// ditto
-            void path(string path)
-            {
-                option_.path = path;
-            }
-
-            /**
-             * Property for cache level
-             */
-            CacheLevel cacheLevel() const
-            {
-                return option_.level;
-            }
-
-            /// ditto
-            void cacheLevel(CacheLevel level)
-            {
-                option_.level = level;
-            }
-        }
-
-        /**
-         * Renders $(D_PARAM name) template with $(D_PARAM context).
-         *
-         * This method stores compile result in memory if you set check or once CacheLevel.
-         *
-         * Params:
-         *  name    = template name without extenstion
-         *  context = Mustache context for rendering
-         *
-         * Returns:
-         *  rendered result.
-         */
-        String render(in string name, in Context context)
-        {
-            String file = join(option_.path, name ~ option_.ext);
-            Node[] nodes;
-
-            final switch (option_.level) {
-            case CacheLevel.no:
-                nodes = compile(readFile(file));
-                break;
-            case CacheLevel.check:
-                auto t = timeLastModified(file, SysTime.min);
-                auto p = file in caches_;
-                if (!p || t > p.modified)
-                    caches_[file] = Cache(compile(readFile(file)), t);
-                nodes = caches_[file].compiled;
-                break;
-            case CacheLevel.once:
-                if (file !in caches_)
-                    caches_[file] = Cache(compile(readFile(file)), SysTime.min);
-                nodes = caches_[file].compiled;
-                break;
-            }
-
-            return renderImpl(nodes, context, option_);
-        }
-    }
-
-
-    /**
      * Mustache context for setting values
      */
-    final class Context
+    static final class Context
     {
       private:
         enum SectionType
@@ -424,28 +316,141 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     }
 
 
+  private:
+    // Internal cache
+    struct Cache
+    {
+        Node[]  compiled;
+        SysTime modified;
+    }
+
+    Option        option_;
+    Cache[string] caches_;
+
+
+  public:
+    @safe
+    this(Option option) nothrow
+    {
+        option_ = option;
+    }
+
+    @property @safe nothrow
+    {
+        /**
+         * Property for template extenstion
+         */
+        string ext() const
+        {
+            return option_.ext;
+        }
+
+        /// ditto
+        void ext(string ext)
+        {
+            option_.ext = ext;
+        }
+
+        /**
+         * Property for template searche path
+         */
+        string path() const
+        {
+            return option_.path;
+        }
+
+        /// ditto
+        void path(string path)
+        {
+            option_.path = path;
+        }
+
+        /**
+         * Property for cache level
+         */
+        CacheLevel level() const
+        {
+            return option_.level;
+        }
+
+        /// ditto
+        void level(CacheLevel level)
+        {
+            option_.level = level;
+        }
+    }
+
+    /**
+     * Renders $(D_PARAM name) template with $(D_PARAM context).
+     *
+     * This method stores compile result in memory if you set check or once CacheLevel.
+     *
+     * Params:
+     *  name    = template name without extenstion
+     *  context = Mustache context for rendering
+     *
+     * Returns:
+     *  rendered result.
+     */
+    String render(in string name, in Context context)
+    {
+        String file = join(option_.path, name ~ option_.ext);
+        Node[] nodes;
+
+        final switch (option_.level) {
+        case CacheLevel.no:
+            nodes = compile(readFile(file));
+            break;
+        case CacheLevel.check:
+            auto t = timeLastModified(file, SysTime.min);
+            auto p = file in caches_;
+            if (!p || t > p.modified)
+                caches_[file] = Cache(compile(readFile(file)), t);
+            nodes = caches_[file].compiled;
+            break;
+        case CacheLevel.once:
+            if (file !in caches_)
+                caches_[file] = Cache(compile(readFile(file)), SysTime.min);
+            nodes = caches_[file].compiled;
+            break;
+        }
+
+        return renderImpl(nodes, context, option_);
+    }
+
     /**
      * Renders $(D_PARAM src) using $(D_PARAM context).
      *
      * Params:
-     *  src     = original template content
+     *  src     = template source
      *  context = Mustache context for rendering
      *  option  = stored path and ext
      *
      * Returns:
      *  rendered result.
      */
-    String render(String src, in Context context, lazy Option option = Option.init)
+    static String render(String src, in Context context, lazy Option option = Option.init)
     {
         return renderImpl(compile(src), context, option);
     }
 
 
   private:
+    /*
+     * Helper for file reading
+     */
+    @trusted
+    static String readFile(string file)
+    {
+        // cast checks character encoding alignment.
+        return cast(String)read(file);
+    }
+
+
     /**
      * Implemention of render function.
      */
-    String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
+    static String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
     {
         // helper for HTML escape(original function from std.xml.encode)
         String encode(in String text)
@@ -534,17 +539,6 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     }
 
 
-    /*
-     * Helper for file reading
-     */
-    @trusted
-    String readFile(string file)
-    {
-        // cast checks character encoding alignment.
-        return cast(String)read(file);
-    }
-
-
     unittest
     {
         { // var
@@ -605,7 +599,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     /**
      * Compiles $(D_PARAM src) into Intermediate Representation.
      */
-    Node[] compile(String src)
+    static Node[] compile(String src)
     {
         String sTag = "{{";
         String eTag = "}}";
@@ -748,7 +742,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     /**
      * Mustache's node types
      */
-    enum NodeType
+    static enum NodeType
     {
         text,     /// outside tag
         var,      /// {{}} or {{{}}} or {{&}}
@@ -760,7 +754,7 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     /**
      * Intermediate Representation of Mustache
      */
-    struct Node
+    static struct Node
     {
         NodeType type;
 

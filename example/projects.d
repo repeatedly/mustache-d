@@ -20,7 +20,7 @@ void main()
 {
     alias MustacheImpl!(string) Mustache;
 
-    Mustache.Template mustache;
+    Mustache mustache;
     auto context = new Mustache.Context;
 
     context["width"] = 4968;
@@ -31,6 +31,7 @@ void main()
         sub["description"] = project.description;
     }
 
-    mustache.path = "example";
+    mustache.path  = "example";
+    mustache.level = Mustache.CacheLevel.no;
     write(mustache.render("projects", context));
 }
