@@ -596,15 +596,18 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
                 auto type = context.fetchableSectionType(node.key);
                 final switch (type) {
                 case Context.SectionType.nil:
-                    if (node.flag) result ~= renderImpl(node.childs, context, option);
+                    if (node.flag)
+                        result ~= renderImpl(node.childs, context, option);
                     break;
                 case Context.SectionType.use:
-                    if (!node.flag) result ~= renderImpl(node.childs, context, option);
+                    if (!node.flag)
+                        result ~= renderImpl(node.childs, context, option);
                     break;
                 case Context.SectionType.var:
                     auto var = context.fetchVar(node.key);
                     if (!var) {
-                        if (node.flag) result ~= renderImpl(node.childs, context, option);
+                        if (node.flag)
+                            result ~= renderImpl(node.childs, context, option);
                     } else {
                         auto sub = new Context(context);
                         foreach (k, v; var)
@@ -614,15 +617,18 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
                     break;
                 case Context.SectionType.func:
                     auto func = context.fetchFunc(node.key);
-                    if (!func)
-                        if (node.flag) result ~= renderImpl(node.childs, context, option);
-                    else
+                    if (!func) {
+                        if (node.flag)
+                            result ~= renderImpl(node.childs, context, option);
+                    } else {
                         result ~= renderImpl(compile(func(node.source)), context, option);
+                    }
                     break;
                 case Context.SectionType.list:
                     auto list = context.fetchList(node.key);
                     if (!list) {
-                        if (node.flag) result ~= renderImpl(node.childs, context, option);
+                        if (node.flag)
+                            result ~= renderImpl(node.childs, context, option);
                     } else {
                         foreach (sub; list)
                             result ~= renderImpl(node.childs, sub, option);
