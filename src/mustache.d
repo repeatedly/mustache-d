@@ -43,8 +43,8 @@ class MustacheException : Exception
  *
  * context["name"]  = "Chris";
  * context["value"] = 10000;
- * context["in_ca"] = ["":""];  // TODO: replace with enableSection
  * context["taxed_value"] = 10000 - (10000 * 0.4);
+ * context.useSection("in_ca");
  *
  * write(mustache.render("sample", context));
  * -----
@@ -141,7 +141,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
       private:
         enum SectionType
         {
-            nil, var, func, list
+            nil, use, var, func, list
         }
 
         struct Section
@@ -157,6 +157,11 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
 
             @safe nothrow
             {
+                this(bool u)
+                {
+                    type = SectionType.use;
+                }
+
                 this(String[String] v)
                 {
                     type = SectionType.var;
@@ -183,6 +188,8 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
                 final switch (type) {
                 case SectionType.nil:
                     return true;
+                case SectionType.use:
+                    return false;
                 case SectionType.var:
                     return !var.length;  // Why?
                 case SectionType.func:
@@ -264,6 +271,20 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
         }
 
         /**
+         * Enable $(D_PARAM key)'s section.
+         *
+         * Params:
+         *  key = key string to enable
+         *
+         * NOTE:
+         *  I don't like this method, but D's typing can't well-handle Ruby's typing.
+         */
+        void useSection(in String key)
+        {
+            sections[key] = Section(true);
+        }
+
+        /**
          * Adds new context to $(D_PARAM key)'s section. This method overwrites with
          * list type if you already assigned other type to $(D_PARAM key)'s section.
          *
@@ -339,9 +360,9 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
             return mixin("parent.fetch" ~ name ~ "(key)");
         }
 
+        alias fetchSection!(String[String],          SectionType.var,  "Var")  fetchVar;
         alias fetchSection!(Context[],               SectionType.list, "List") fetchList;
         alias fetchSection!(String delegate(String), SectionType.func, "Func") fetchFunc;
-        alias fetchSection!(String[String],          SectionType.var,  "Var")  fetchVar;
     }
 
     unittest
@@ -576,6 +597,9 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
                 final switch (type) {
                 case Context.SectionType.nil:
                     if (node.flag) result ~= renderImpl(node.childs, context, option);
+                    break;
+                case Context.SectionType.use:
+                    if (!node.flag) result ~= renderImpl(node.childs, context, option);
                     break;
                 case Context.SectionType.var:
                     auto var = context.fetchVar(node.key);

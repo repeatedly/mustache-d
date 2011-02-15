@@ -6,16 +6,16 @@ Mustache is a push-strategy (a.k.a logic-less) template engine.
 
 * Variables
 * Sections
-** Lists
-** Non-False Values
-** Lambdas(half implementation)
-** Inverted
+  * Lists
+  * Non-False Values
+  * Lambdas(half implementation)
+  * Inverted
 * Comments
 * Partials
 
 # Usage
 
-See example directory.
+See example directory and DDoc comments.
 
 # Link
 
