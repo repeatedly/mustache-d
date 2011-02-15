@@ -20,7 +20,7 @@ import std.traits;   // isSomeString, isAssociativeArray
 
 
 /**
- * Exception representation for Mustache
+ * Exception for Mustache operations
  */
 class MustacheException : Exception
 {
@@ -31,6 +31,38 @@ class MustacheException : Exception
 }
 
 
+/**
+ * Core implementation for Mustache.
+ *
+ * Example:
+ * -----
+ * alias MustacheImpl!(string) Mustache;
+ *
+ * Mustache mustache;
+ * auto context = new Mustache.Context;
+ *
+ * context["name"]  = "Chris";
+ * context["value"] = 10000;
+ * context["in_ca"] = ["":""];  // TODO: replace with enableSection
+ * context["taxed_value"] = 10000 - (10000 * 0.4);
+ *
+ * write(mustache.render("sample", context));
+ * -----
+ * sample.mustache:
+ * -----
+ * Hello {{name}}
+ * You have just won ${{value}}!
+ * {{#in_ca}}
+ * Well, ${{taxed_value}}, after taxes.
+ * {{/in_ca}}
+ * -----
+ * Output:
+ * -----
+ * Hello Chris
+ * You have just won $10000!
+ * Well, $6000, after taxes.
+ * -----
+ */
 struct MustacheImpl(String = string) if (isSomeString!(String))
 {
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
@@ -42,23 +74,67 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
      */
     static enum CacheLevel
     {
-        no, check, once
+        no,     /// No caching
+        check,  /// Caches compiled result and checks the freshness of template
+        once    /// Caches compiled result but not check the freshness of template
     }
 
 
     /**
-     * Mustache option for rendering
+     * Options for rendering
      */
     static struct Option
     {
         string     ext   = ".mustache";       /// template file extenstion
         string     path  = ".";               /// root path for template file searching
-        CacheLevel level = CacheLevel.check;  /// 
+        CacheLevel level = CacheLevel.check;  /// See CacheLevel
     }
 
 
     /**
      * Mustache context for setting values
+     *
+     * Variable:
+     * -----
+     * //{{name}} to "Chris"
+     * context["name"] = "Chirs"
+     * -----
+     *
+     * Lists section("addSubContext" name is drived from ctemplate's API):
+     * -----
+     * //{{#repo}}
+     * //  <b>{{name}}</b>
+     * //{{/repo}}
+     * //  to
+     * //<b>resque</b>
+     * //<b>hub</b>
+     * //<b>rip</b>
+     * foreach (name; ["resque", "hub", "rip"]) {
+     *     auto sub = context.addSubContext("repo");
+     *     sub["name"] = name;
+     * }
+     * -----
+     *
+     * Variable section:
+     * -----
+     * //{{#person?}}Hi {{name}}{{/person?}} to "Hi Jon"
+     * context["person?"] = ["name" : "Jon"];
+     * -----
+     *
+     * Lambdas section(half implementation):
+     * -----
+     * //{{#wrapped}}awesome{{/wrapped}} to "<b>awesome</b>"
+     * context["Wrapped"] = (string str) { return "<b>" ~ str ~ "</b>"; };
+     * -----
+     *
+     * Inverted section:
+     * -----
+     * //{{#repo}}<b>{{name}}</b>{{/repo}}
+     * //{{^repo}}No repos :({{/repo}}
+     * //  to
+     * //No repos :(
+     * context["foo"] = "bar";  // not set to "repo" 
+     * -----
      */
     static final class Context
     {
@@ -83,8 +159,8 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
             {
                 this(String[String] v)
                 {
-                    type  = SectionType.var;
-                    var = v;
+                    type = SectionType.var;
+                    var  = v;
                 }
 
                 this(String delegate(String) f)
@@ -298,7 +374,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
                 }
             }
         }
-        { // value
+        { // variable
             // workaround for dstring initialization
             // String[String] aa = ["name" : "Ritsu"];
             String[String] aa;
@@ -419,7 +495,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
     }
 
     /**
-     * Renders $(D_PARAM src) using $(D_PARAM context).
+     * Renders $(D_PARAM src) with $(D_PARAM context).
      *
      * Params:
      *  src     = template source
@@ -436,8 +512,11 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
 
 
   private:
-    /*
+    /**
      * Helper for file reading
+     *
+     * Throws:
+     *  object.Exception if alignment is mismatched.
      */
     @trusted
     static String readFile(string file)
@@ -445,7 +524,6 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
         // cast checks character encoding alignment.
         return cast(String)read(file);
     }
-
 
     /**
      * Implemention of render function.
@@ -747,7 +825,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
         text,     /// outside tag
         var,      /// {{}} or {{{}}} or {{&}}
         section,  /// {{#}} or {{^}}
-        partial   /// {{<}}
+        partial   /// {{>}}
     }
 
 
