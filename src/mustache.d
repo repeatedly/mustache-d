@@ -12,7 +12,8 @@ module mustache;
 import std.array;    // empty, back, popBack, appender
 import std.conv;     // to
 import std.ctype;    // isspace
-import std.file;     // read
+import std.datetime; // SysTime (I think std.file should import std.datetime as public)
+import std.file;     // read, timeLastModified
 import std.path;     // join
 import std.string;   // strip, stripl
 import std.traits;   // isSomeString, isAssociativeArray
@@ -49,8 +50,8 @@ template MustacheImpl(String = string) if (isSomeString!(String))
      */
     struct Option
     {
-        string ext       = ".mustache";       /// template file extenstion
-        string path      = ".";               /// root path for file searching
+        string     ext   = ".mustache";       /// template file extenstion
+        string     path  = ".";               /// root path for file searching
         CacheLevel level = CacheLevel.check;  /// 
     }
 
@@ -61,9 +62,14 @@ template MustacheImpl(String = string) if (isSomeString!(String))
     struct Template
     {
       private:
-        Option         option_;
-        Node[][string] caches_;
-        bool           enableCache_;  // TODO: Replace with enum CacheLevel
+        struct Cache
+        {
+            Node[]  compiled;
+            SysTime modified;
+        }
+
+        Option        option_;
+        Cache[string] caches_;
 
 
       public:
@@ -116,15 +122,16 @@ template MustacheImpl(String = string) if (isSomeString!(String))
                 nodes = compile(readFile(file));
                 break;
             case CacheLevel.check:
+                auto t = timeLastModified(file, SysTime.min);
                 auto p = file in caches_;
-                if (p) {
-                    nodes = *p;
-                } else {
-                    nodes = compile(readFile(file));
-                    caches_[file] = nodes;
-                }
+                if (!p || t > p.modified)
+                    caches_[file] = Cache(compile(readFile(file)), t);
+                nodes = caches_[file].compiled;
                 break;
             case CacheLevel.once:
+                if (file !in caches_)
+                    caches_[file] = Cache(compile(readFile(file)), SysTime.min);
+                nodes = caches_[file].compiled;
                 break;
             }
 
