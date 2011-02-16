@@ -20,7 +20,7 @@ import std.traits;   // isSomeString, isAssociativeArray
 
 
 /**
- * Exception for Mustache operations
+ * Exception for Mustache
  */
 class MustacheException : Exception
 {
@@ -32,11 +32,13 @@ class MustacheException : Exception
 
 
 /**
- * Core implementation for Mustache.
+ * Core implementation of Mustache
+ *
+ * $(D_PARAM String) parameter means a string type to render.
  *
  * Example:
  * -----
- * alias MustacheImpl!(string) Mustache;
+ * alias MustacheEngine!(string) Mustache;
  *
  * Mustache mustache;
  * auto context = new Mustache.Context;
@@ -63,7 +65,7 @@ class MustacheException : Exception
  * Well, $6000, after taxes.
  * -----
  */
-struct MustacheImpl(String = string) if (isSomeString!(String))
+struct MustacheEngine(String = string) if (isSomeString!(String))
 {
     static assert(!is(String == wstring), "wstring is unsupported. It's a buggy!");
 
@@ -312,7 +314,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
 
 
       private:
-        /**
+        /*
          * Fetches $(D_PARAM)'s value. This method follows parent context.
          *
          * Params:
@@ -533,7 +535,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
 
 
   private:
-    /**
+    /*
      * Helper for file reading
      *
      * Throws:
@@ -546,7 +548,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
         return cast(String)read(file);
     }
 
-    /**
+    /*
      * Implemention of render function.
      */
     static String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
@@ -703,8 +705,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
         }
     }
 
-
-    /**
+    /*
      * Compiles $(D_PARAM src) into Intermediate Representation.
      */
     static Node[] compile(String src)
@@ -847,7 +848,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
     }
 
 
-    /**
+    /*
      * Mustache's node types
      */
     static enum NodeType
@@ -859,7 +860,7 @@ struct MustacheImpl(String = string) if (isSomeString!(String))
     }
 
 
-    /**
+    /*
      * Intermediate Representation of Mustache
      */
     static struct Node

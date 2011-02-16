@@ -18,7 +18,7 @@ static Project[] projects = [
 
 void main()
 {
-    alias MustacheImpl!(string) Mustache;
+    alias MustacheEngine!(string) Mustache;
 
     Mustache mustache;
     auto context = new Mustache.Context;

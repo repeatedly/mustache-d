@@ -7,10 +7,7 @@ FILES   = $(addsuffix .d, $(NAMES))
 SRCS    = $(addprefix src/, $(FILES))
 
 # DDoc
-DOCS      = $(addsuffix .html, $(NAMES))
-DOCDIR    = html
-CANDYDOC  = $(addprefix html/candydoc/, candy.ddoc modules.ddoc)
-DDOCFLAGS = -Dd$(DOCDIR) -c -o- -Isrc $(CANDYDOC)
+DDOCFLAGS = -c -o- std.ddoc -Isrc
 
 target: $(LIB)
 
@@ -18,7 +15,7 @@ $(LIB):
 	$(DMD) $(DFLAGS) -lib -of$(LIB) $(SRCS)
 
 doc:
-	$(DMD) $(DDOCFLAGS) $(SRCS)
+	$(DMD) -Dd. $(DDOCFLAGS) $(SRCS)
 
 clean:
-	rm $(addprefix $(DOCDIR)/, $(DOCS)) $(LIB)
+	rm $(addsuffix $(NAMES), .html) $(LIB)
