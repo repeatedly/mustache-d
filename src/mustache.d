@@ -71,6 +71,9 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
 
   public:
+    alias String delegate() Handler;
+
+
     /**
      * Cache level for compile result
      */
@@ -90,6 +93,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         string     ext   = ".mustache";       /// template file extenstion
         string     path  = ".";               /// root path for template file searching
         CacheLevel level = CacheLevel.check;  /// See CacheLevel
+        Handler    handler;                   /// Callback handler for unknown name
     }
 
 
@@ -281,6 +285,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          * NOTE:
          *  I don't like this method, but D's typing can't well-handle Ruby's typing.
          */
+        @safe
         void useSection(in String key)
         {
             sections[key] = Section(true);
@@ -323,15 +328,15 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          * Returns:
          *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
-        @safe
-        String fetch(in String key) const nothrow
+        @trusted
+        String fetch(in String key, lazy Handler handler = null) const
         {
             auto result = key in variables;
             if (result !is null)
                 return *result;
 
             if (parent is null)
-                return null;
+                return handler is null ? null : handler()();
 
             return parent.fetch(key);
         }
@@ -412,6 +417,17 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             context["Wrapped"] = func;
             assert(context.fetchFunc("Wrapped")("Ritsu") == func("Ritsu"));
         }
+        { // handler
+            Handler fixme = delegate String() { return "FIXME"; };
+            Handler error = delegate String() { throw new MustacheException("Unknow"); };
+
+            assert(context.fetch("unknown") == "");
+            assert(context.fetch("unknown", fixme) == "FIXME");
+            try {
+                assert(context.fetch("unknown", error) == "");
+                assert(false);
+            } catch (const MustacheException e) { }
+        }
     }
 
 
@@ -439,7 +455,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         /**
          * Property for template extenstion
          */
-        string ext() const
+        const(string) ext() const
         {
             return option_.ext;
         }
@@ -453,7 +469,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         /**
          * Property for template searche path
          */
-        string path() const
+        const(string) path() const
         {
             return option_.path;
         }
@@ -467,7 +483,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         /**
          * Property for cache level
          */
-        CacheLevel level() const
+        const(CacheLevel) level() const
         {
             return option_.level;
         }
@@ -476,6 +492,20 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         void level(CacheLevel level)
         {
             option_.level = level;
+        }
+
+        /**
+         * Property for callback handler
+         */
+        const(Handler) handler() const
+        {
+            return option_.handler;
+        }
+
+        /// ditto
+        void handler(Handler handler)
+        {
+            option_.handler = handler;
         }
     }
 
@@ -490,6 +520,9 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      *
      * Returns:
      *  rendered result.
+     *
+     * Throws:
+     *  object.Exception if String alignment is mismatched from template file.
      */
     String render(in string name, in Context context)
     {
@@ -532,13 +565,6 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
     /**
      * string version of $(D render).
-     *
-     * Params:
-     *  src     = template source
-     *  context = Mustache context for rendering
-     *
-     * Returns:
-     *  rendered result.
      */
     String render_string(in String src, in Context context)
     {
@@ -559,7 +585,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             auto   result = appender!String();
 
             foreach (i, c; text) {
-                string temp;
+                String temp;
 
                 switch (c) {
                 case '&': temp = "&amp;";  break;
@@ -589,7 +615,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 result ~= node.text;
                 break;
             case NodeType.var:
-                auto value = context.fetch(node.key);
+                auto value = context.fetch(node.key, option_.handler);
                 if (value)
                     result ~= node.flag ? value : encode(value);
                 break;
@@ -659,6 +685,19 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(render("Hello {{name}}",   context) == "Hello Ritsu &amp; Mio");
             assert(render("Hello {{&name}}",  context) == "Hello Ritsu & Mio");
             assert(render("Hello {{{name}}}", context) == "Hello Ritsu & Mio");
+        }
+        { // var with handler
+            auto context = new Context;
+            context["name"] = "Ritsu & Mio";
+
+            m.handler = delegate String() { return "FIXME"; };
+            assert(render("Hello {{unknown}}", context) == "Hello FIXME");
+
+            m.handler = delegate String() { throw new MustacheException("Unknow"); };
+            try {
+                assert(render("Hello {{&unknown}}", context) == "Hello Ritsu & Mio");
+                assert(false);
+            } catch (const MustacheException e) {}
         }
         { // list section
             auto context = new Context;
