@@ -493,6 +493,19 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      */
     String render(in string name, in Context context)
     {
+        /*
+         * Helper for file reading
+         *
+         * Throws:
+         *  object.Exception if alignment is mismatched.
+         */
+        @trusted
+        static String readFile(string file)
+        {
+            // cast checks character encoding alignment.
+            return cast(String)read(file);
+        }
+
         string file = join(option_.path, name ~ option_.ext);
         Node[] nodes;
 
@@ -514,7 +527,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             break;
         }
 
-        return renderImpl(nodes, context, option_);
+        return renderImpl(nodes, context);
     }
 
     /**
@@ -527,30 +540,17 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      * Returns:
      *  rendered result.
      */
-    String render_string(String src, in Context context)
+    String render_string(in String src, in Context context)
     {
-        return renderImpl(compile(src), context, option_);
+        return renderImpl(compile(src), context);
     }
 
 
   private:
     /*
-     * Helper for file reading
-     *
-     * Throws:
-     *  object.Exception if alignment is mismatched.
-     */
-    @trusted
-    static String readFile(string file)
-    {
-        // cast checks character encoding alignment.
-        return cast(String)read(file);
-    }
-
-    /*
      * Implemention of render function.
      */
-    static String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
+    String renderImpl(in Node[] nodes, in Context context)
     {
         // helper for HTML escape(original function from std.xml.encode)
         static String encode(in String text)
@@ -598,48 +598,47 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 final switch (type) {
                 case Context.SectionType.nil:
                     if (node.flag)
-                        result ~= renderImpl(node.childs, context, option);
+                        result ~= renderImpl(node.childs, context);
                     break;
                 case Context.SectionType.use:
                     if (!node.flag)
-                        result ~= renderImpl(node.childs, context, option);
+                        result ~= renderImpl(node.childs, context);
                     break;
                 case Context.SectionType.var:
                     auto var = context.fetchVar(node.key);
                     if (!var) {
                         if (node.flag)
-                            result ~= renderImpl(node.childs, context, option);
+                            result ~= renderImpl(node.childs, context);
                     } else {
                         auto sub = new Context(context);
                         foreach (k, v; var)
                             sub[k] = v;
-                        result ~= renderImpl(node.childs, sub, option);
+                        result ~= renderImpl(node.childs, sub);
                     }
                     break;
                 case Context.SectionType.func:
                     auto func = context.fetchFunc(node.key);
                     if (!func) {
                         if (node.flag)
-                            result ~= renderImpl(node.childs, context, option);
+                            result ~= renderImpl(node.childs, context);
                     } else {
-                        result ~= renderImpl(compile(func(node.source)), context, option);
+                        result ~= renderImpl(compile(func(node.source)), context);
                     }
                     break;
                 case Context.SectionType.list:
                     auto list = context.fetchList(node.key);
                     if (!list) {
                         if (node.flag)
-                            result ~= renderImpl(node.childs, context, option);
+                            result ~= renderImpl(node.childs, context);
                     } else {
                         foreach (sub; list)
-                            result ~= renderImpl(node.childs, sub, option);
+                            result ~= renderImpl(node.childs, sub);
                     }
                     break;
                 }
                 break;
             case NodeType.partial:
-                auto src = readFile(join(option.path, to!string(node.key) ~ option.ext));
-                result ~= renderImpl(compile(src), context, option);
+                result ~= render(to!string(node.key), context);
                 break;
             }
         }
@@ -650,7 +649,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
     unittest
     {
-        alias MustacheEngine!(String) M; M m;
+        MustacheEngine!(String) m;
         auto render = &m.render_string;
 
         { // var
