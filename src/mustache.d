@@ -90,7 +90,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      */
     static struct Option
     {
-        string     ext   = ".mustache";       /// template file extenstion
+        string     ext   = "mustache";        /// template file extenstion
         string     path  = ".";               /// root path for template file searching
         CacheLevel level = CacheLevel.check;  /// See CacheLevel
         Handler    handler;                   /// Callback handler for unknown name
@@ -539,7 +539,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             return cast(String)read(file);
         }
 
-        string file = join(option_.path, name ~ option_.ext);
+        string file = join(option_.path, name ~ "." ~ option_.ext);
         Node[] nodes;
 
         final switch (option_.level) {
