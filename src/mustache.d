@@ -493,7 +493,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      */
     String render(in string name, in Context context)
     {
-        String file = join(option_.path, name ~ option_.ext);
+        string file = join(option_.path, name ~ option_.ext);
         Node[] nodes;
 
         final switch (option_.level) {
@@ -518,19 +518,18 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     }
 
     /**
-     * Renders $(D_PARAM src) with $(D_PARAM context).
+     * string version of $(D render).
      *
      * Params:
      *  src     = template source
      *  context = Mustache context for rendering
-     *  option  = stored path and ext
      *
      * Returns:
      *  rendered result.
      */
-    static String render(String src, in Context context, lazy Option option = Option.init)
+    String render_string(String src, in Context context)
     {
-        return renderImpl(compile(src), context, option);
+        return renderImpl(compile(src), context, option_);
     }
 
 
@@ -554,7 +553,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     static String renderImpl(in Node[] nodes, in Context context, lazy Option option = Option.init)
     {
         // helper for HTML escape(original function from std.xml.encode)
-        String encode(in String text)
+        static String encode(in String text)
         {
             size_t index;
             auto   result = appender!String();
@@ -651,6 +650,9 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
     unittest
     {
+        alias MustacheEngine!(String) M; M m;
+        auto render = &m.render_string;
+
         { // var
             auto context = new Context;
             context["name"] = "Ritsu & Mio";
@@ -691,7 +693,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(render("<h1>Today{{! ignore me }}.</h1>", context) == "<h1>Today.</h1>");
         }
         { // partial
-            std.file.write("user.mustache", "<strong>{{name}}</strong>\n");
+            std.file.write("user.mustache", to!String("<strong>{{name}}</strong>\n"));
             scope(exit) std.file.remove("user.mustache");
 
             auto context = new Context;
