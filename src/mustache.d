@@ -1,7 +1,7 @@
 /**
  * Mustache template engine for D
  *
- * Implemented according to $(WEB mustache.github.com/mustache.5.html, mustache(5)).
+ * Implemented according to <a href="http://mustache.github.com/mustache.5.html">mustach(5)</a>.
  *
  * Copyright: Copyright Masahiro Nakagawa 2011-.
  * License:   <a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.

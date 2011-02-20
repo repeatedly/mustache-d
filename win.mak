@@ -1,13 +1,11 @@
 DMD     = dmd
-LIB     = libmustache.a
+LIB     = mustache.lib
 DFLAGS  = -O -release -inline -nofloat -w -d -Isrc
 UDFLAGS = -w -g -debug -unittest
-NAMES   = mustache
-FILES   = $(addsuffix .d, $(NAMES))
-SRCS    = $(addprefix src/, $(FILES))
+SRCS    = src\mustache.d
 
 # DDoc
-DOCS = $(addsuffix .html, $(NAMES))
+DOCS = mustache.html
 DDOCFLAGS = -Dd. -c -o- std.ddoc -Isrc
 
 target: $(LIB)
