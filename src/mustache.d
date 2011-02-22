@@ -707,7 +707,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
 
             assert(render("{{#repo}}\n  <b>{{name}}</b>\n{{/repo}}", context) ==
-                   "<b>resque</b>\n<b>hub</b>\n<b>rip</b>\n");
+                   "\n  <b>resque</b>\n  <b>hub</b>\n  <b>rip</b>");
         }
         { // var section
             auto context = new Context;
@@ -715,23 +715,23 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             context["person?"] = aa;
 
             assert(render("{{#person?}}\n  Hi {{name}}!\n{{/person?}}", context) ==
-                   "Hi Ritsu!\n");
+                   "\n  Hi Ritsu!");
         }
         { // inverted section
-            String temp  = "{{#repo}}\n  <b>{{name}}</b>\n{{/repo}}\n{{^repo}}\n  No repos :(\n{{/repo}}";
+            String temp  = "{{#repo}}\n<b>{{name}}</b>\n{{/repo}}\n{{^repo}}\nNo repos :(\n{{/repo}}\n";
             auto context = new Context;
-            assert(render(temp, context) == "No repos :(\n");
+            assert(render(temp, context) == "\nNo repos :(\n");
 
             String[String] aa;
             context["person?"] = aa;
-            assert(render(temp, context) == "No repos :(\n");
+            assert(render(temp, context) == "\nNo repos :(\n");
         }
         { // comment
             auto context = new Context;
             assert(render("<h1>Today{{! ignore me }}.</h1>", context) == "<h1>Today.</h1>");
         }
         { // partial
-            std.file.write("user.mustache", to!String("<strong>{{name}}</strong>\n"));
+            std.file.write("user.mustache", to!String("<strong>{{name}}</strong>"));
             scope(exit) std.file.remove("user.mustache");
 
             auto context = new Context;
@@ -740,8 +740,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 sub["name"] = name;
             }
 
-            assert(render("<h2>Names</h2>\n{{#names}}\n  {{> user}}\n{{/names}}", context) ==
-                   "<h2>Names</h2>\n<strong>Ritsu</strong>\n<strong>Mio</strong>\n");
+            assert(render("<h2>Names</h2>\n{{#names}}\n  {{> user}}\n{{/names}}\n", context) ==
+                   "<h2>Names</h2>\n  <strong>Ritsu</strong>\n  <strong>Mio</strong>\n");
         }
     }
 
@@ -750,6 +750,13 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      */
     static Node[] compile(String src)
     {
+        // strip previous whitespaces
+        void fixWS(ref Node node)
+        {
+            if (node.type == NodeType.text)
+                node.text = node.text.stripr();
+        }
+
         String sTag = "{{";
         String eTag = "}}";
 
@@ -782,7 +789,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 break;
             } else {
                 if (hit > 0)
-                    result ~= Node(stack.empty ? src[0..hit] : src[0..hit].stripl());
+                    result ~= Node(src[0..hit]);
                 src = src[hit + sTag.length..$];
             }
 
@@ -792,11 +799,14 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             immutable type = src[0];
             switch (type) {
-            case '#', '^':
+            case '#': case '^':
+                if (result.length)
+                    fixWS(result[$ - 1]);
+
                 auto key = src[1..end].strip();
-                result  ~= Node(NodeType.section, key, type == '^');
-                stack   ~= Memo(key, result, src[end + eTag.length..$]);
-                result   = null;
+                result ~= Node(NodeType.section, key, type == '^');
+                stack  ~= Memo(key, result, src[end + eTag.length..$]);
+                result  = null;
                 break;
             case '/':
                 auto key = src[1..end].strip();
@@ -806,14 +816,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 if (key != memo.key)
                     throw new MustacheException(to!string(key) ~ " is different from expected " ~ to!string(memo.key));
 
+                fixWS(result[$ - 1]);
+
                 auto temp = result;
                 result = memo.nodes;
                 result[$ - 1].childs = temp;
                 result[$ - 1].source = memo.source[0..src.ptr - memo.source.ptr - eTag.length];
-
-                auto pos = end + eTag.length;
-                if (pos < src.length && isspace(src[pos]))
-                    end++;
                 break;
             case '>':
                 // TODO: If option argument exists, this function can read and compile partial file.
@@ -855,7 +863,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(nodes[1].flag == true);
         }
         {  // section and escape
-            auto nodes = compile("{{#in_ca}}\nWell, ${{taxed_value}}, after taxes.\n{{/in_ca}}");
+            auto nodes = compile("{{#in_ca}}\nWell, ${{taxed_value}}, after taxes.\n{{/in_ca}}\n");
             assert(nodes[0].type   == NodeType.section);
             assert(nodes[0].key    == "in_ca");
             assert(nodes[0].flag   == false);
@@ -863,22 +871,22 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             auto childs = nodes[0].childs;
             assert(childs[0].type == NodeType.text);
-            assert(childs[0].text == "Well, $");
+            assert(childs[0].text == "\nWell, $");
             assert(childs[1].type == NodeType.var);
             assert(childs[1].key  == "taxed_value");
             assert(childs[1].flag == false);
             assert(childs[2].type == NodeType.text);
-            assert(childs[2].text == ", after taxes.\n");
+            assert(childs[2].text == ", after taxes.");
         }
         {  // inverted section
-            auto nodes = compile("{{^repo}}\n  No repos :(\n{{/repo}}");
+            auto nodes = compile("{{^repo}}\n  No repos :(\n{{/repo}}\n");
             assert(nodes[0].type == NodeType.section);
             assert(nodes[0].key  == "repo");
             assert(nodes[0].flag == true);
 
             auto childs = nodes[0].childs;
             assert(childs[0].type == NodeType.text);
-            assert(childs[0].text == "No repos :(\n");
+            assert(childs[0].text == "\n  No repos :(");
         }
         {  // partial and set delimiter
             auto nodes = compile("{{=<% %>=}}<%> erb_style %>");
