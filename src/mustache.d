@@ -18,6 +18,8 @@ import std.path;     // join
 import std.string;   // strip, stripl
 import std.traits;   // isSomeString, isAssociativeArray
 
+version(unittest) import core.thread;
+
 
 /**
  * Exception for Mustache
@@ -109,7 +111,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      * Lists section("addSubContext" name is drived from ctemplate's API):
      * -----
      * //{{#repo}}
-     * //  <b>{{name}}</b>
+     * //<b>{{name}}</b>
      * //{{/repo}}
      * //  to
      * //<b>resque</b>
@@ -127,7 +129,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      * context["person?"] = ["name" : "Jon"];
      * -----
      *
-     * Lambdas section(half implementation):
+     * Lambdas section:
      * -----
      * //{{#wrapped}}awesome{{/wrapped}} to "<b>awesome</b>"
      * context["Wrapped"] = (string str) { return "<b>" ~ str ~ "</b>"; };
@@ -157,7 +159,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             union
             {
                 String[String]          var;
-                String delegate(String) func;  // String delegate(String) delegate()?
+                String delegate(String) func;  // func type is String delegate(String) delegate()?
                 Context[]               list;
             }
 
@@ -547,7 +549,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             nodes = compile(readFile(file));
             break;
         case CacheLevel.check:
-            auto t = timeLastModified(file, SysTime.min);
+            auto t = timeLastModified(file);
             auto p = file in caches_;
             if (!p || t > p.modified)
                 caches_[file] = Cache(compile(readFile(file)), t);
@@ -1008,5 +1010,44 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
         assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], `
                                    `[S : "ritsu", [ [T : "Ritsu is "] [E : "attr"] ], ""]]`);
+    }
+}
+
+unittest
+{
+    alias MustacheEngine!(string) Mustache;
+
+    std.file.write("unittest.mustache", "Level: {{lvl}}");
+    scope(exit) std.file.remove("unittest.mustache");
+
+    Mustache mustache;
+    auto context = new Mustache.Context;
+
+    { // no
+        mustache.level = Mustache.CacheLevel.no;
+        context["lvl"] = "no";
+        assert(mustache.render("unittest", context) == "Level: no");
+        assert(mustache.caches_.length == 0);
+    }
+    { // check
+        mustache.level = Mustache.CacheLevel.check;
+        context["lvl"] = "check";
+        assert(mustache.render("unittest", context) == "Level: check");
+        assert(mustache.caches_.length > 0);
+
+        core.thread.Thread.sleep(dur!"seconds"(1));
+        std.file.write("unittest.mustache", "Modified");
+        assert(mustache.render("unittest", context) == "Modified");
+    }
+    mustache.caches_.remove("./unittest.mustache");  // remove previous cache
+    { // once
+        mustache.level = Mustache.CacheLevel.once;
+        context["lvl"] = "once";
+        assert(mustache.render("unittest", context) == "Modified");
+        assert(mustache.caches_.length > 0);
+
+        core.thread.Thread.sleep(dur!"seconds"(1));
+        std.file.write("unittest.mustache", "Level: {{lvl}}");
+        assert(mustache.render("unittest", context) == "Modified");
     }
 }

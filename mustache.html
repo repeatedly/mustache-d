@@ -61,7 +61,7 @@ function listanchors()
 	</ul>
 	</div>
 
-	<div id="lastupdate">Last update Mon Feb 21 08:39:28 2011
+	<div id="lastupdate">Last update Fri Feb 25 02:03:59 2011
 </div>
 </div>
 
@@ -297,7 +297,7 @@ Implemented according to <a href="http://mustache.github.com/mustache.5.html">mu
 
  Lists section("addSubContext" name is drived from ctemplate's API):
 <pre class="d_code"> <span class="d_comment">//{{#repo}}
-</span> <span class="d_comment">//  &lt;b&gt;{{name}}&lt;/b&gt;
+</span> <span class="d_comment">//&lt;b&gt;{{name}}&lt;/b&gt;
 </span> <span class="d_comment">//{{/repo}}
 </span> <span class="d_comment">//  to
 </span> <span class="d_comment">//&lt;b&gt;resque&lt;/b&gt;
@@ -314,7 +314,7 @@ Implemented according to <a href="http://mustache.github.com/mustache.5.html">mu
 </span> context[<span class="d_string">"person?"</span>] = [<span class="d_string">"name"</span> : <span class="d_string">"Jon"</span>];
 </pre>
 
- Lambdas section(half implementation):
+ Lambdas section:
 <pre class="d_code"> <span class="d_comment">//{{#wrapped}}awesome{{/wrapped}} to "&lt;b&gt;awesome&lt;/b&gt;"
 </span> context[<span class="d_string">"Wrapped"</span>] = (string str) { <span class="d_keyword">return</span> <span class="d_string">"&lt;b&gt;"</span> ~ str ~ <span class="d_string">"&lt;/b&gt;"</span>; };
 </pre>
