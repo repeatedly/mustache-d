@@ -11,11 +11,10 @@ module mustache;
 
 import std.array;    // empty, back, popBack, appender
 import std.conv;     // to
-import std.ctype;    // isspace
 import std.datetime; // SysTime (I think std.file should import std.datetime as public)
 import std.file;     // read, timeLastModified
 import std.path;     // join
-import std.string;   // strip, stripl
+import std.string;   // strip, stripRight, stripLeft
 import std.traits;   // isSomeString, isAssociativeArray
 
 version(unittest) import core.thread;
@@ -568,7 +567,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     /**
      * string version of $(D render).
      */
-    String render_string(in String src, in Context context)
+    String renderString(in String src, in Context context)
     {
         return renderImpl(compile(src), context);
     }
@@ -678,7 +677,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     unittest
     {
         MustacheEngine!(String) m;
-        auto render = &m.render_string;
+        auto render = &m.renderString;
 
         { // var
             auto context = new Context;
@@ -756,7 +755,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         void fixWS(ref Node node)
         {
             if (node.type == NodeType.text)
-                node.text = node.text.stripr();
+                node.text = node.text.stripRight();
         }
 
         String sTag = "{{";
@@ -769,7 +768,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 throw new MustacheException("Delimiter tag needs white-space");
 
             sTag = src[0..i];
-            eTag = src[i + 1..$].stripl();
+            eTag = src[i + 1..$].stripLeft();
         }
 
         // State capturing for section
