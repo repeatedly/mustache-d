@@ -14,7 +14,7 @@ import std.conv;     // to
 import std.datetime; // SysTime (I think std.file should import std.datetime as public)
 import std.file;     // read, timeLastModified
 import std.path;     // join
-import std.string;   // strip, stripRight, stripLeft
+import std.string;   // strip, chomp, stripLeft
 import std.traits;   // isSomeString, isAssociativeArray
 
 version(unittest) import core.thread;
@@ -751,11 +751,11 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      */
     static Node[] compile(String src)
     {
-        // strip previous whitespaces
+        // strip previous whitespace
         void fixWS(ref Node node)
         {
             if (node.type == NodeType.text)
-                node.text = node.text.stripRight();
+                node.text = node.text.chomp();
         }
 
         String sTag = "{{";
