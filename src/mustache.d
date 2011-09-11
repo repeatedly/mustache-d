@@ -13,7 +13,7 @@ import std.array;    // empty, back, popBack, appender
 import std.conv;     // to
 import std.datetime; // SysTime (I think std.file should import std.datetime as public)
 import std.file;     // read, timeLastModified
-import std.path;     // join
+import std.path;     // buildPath
 import std.string;   // strip, chomp, stripLeft
 import std.traits;   // isSomeString, isAssociativeArray
 
@@ -540,7 +540,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             return cast(String)read(file);
         }
 
-        string file = join(option_.path, name ~ "." ~ option_.ext);
+        string file = buildPath(option_.path, name ~ "." ~ option_.ext);
         Node[] nodes;
 
         final switch (option_.level) {
@@ -765,7 +765,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         {
             auto i = src.indexOf(" ");
             if (i == -1)
-                throw new MustacheException("Delimiter tag needs white-space");
+                throw new MustacheException("Delimiter tag needs whitespace");
 
             sTag = src[0..i];
             eTag = src[i + 1..$].stripLeft();
