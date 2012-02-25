@@ -189,7 +189,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
 
             /* nothrow : AA's length is not nothrow */
-            @trusted
+            @trusted @property
             bool empty() const
             {
                 final switch (type) {
@@ -265,10 +265,13 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 }
                 else static assert(false, "Non-supported Associative Array type");
             }
-            else static if (is(T == delegate))
+            else static if (isCallable!T)
             {
-                static if (is(T D == S delegate(S), S : String))
-                    sections[key] = Section(value);
+                import std.functional : toDelegate;
+
+                auto v = toDelegate(value);
+                static if (is(typeof(v) D == S delegate(S), S : String))
+                    sections[key] = Section(v);
                 else static assert(false, "Non-supported delegate type");
             }
             else
@@ -404,16 +407,13 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
         }
         { // variable
-            // workaround for dstring initialization
-            // String[String] aa = ["name" : "Ritsu"];
-            String[String] aa;
-            aa["name"] = "Ritsu";
+            String[String] aa = ["name" : "Ritsu"];
 
             context["Value"] = aa;
             assert(context.fetchVar("Value") == cast(const)aa);
         }
         { // func
-            auto func = (String str) { return "<b>" ~ str ~ "</b>"; };
+            auto func = function (String str) { return "<b>" ~ str ~ "</b>"; };
 
             context["Wrapped"] = func;
             assert(context.fetchFunc("Wrapped")("Ritsu") == func("Ritsu"));
