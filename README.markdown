@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/repeatedly/mustache-d.png)](https://travis-ci.org/repeatedly/mustache-d)
+
 # Mustache for D
 
 Mustache is a push-strategy (a.k.a logic-less) template engine.
