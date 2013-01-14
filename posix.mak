@@ -1,11 +1,7 @@
 # build mode: 32bit or 64bit
-ifeq (,$(MODEL))
-	MODEL := 32
-endif
 
-ifeq (,$(DMD))
-	DMD := dmd
-endif
+MODEL ?= $(shell getconf LONG_BIT)
+DMD ?= dmd
 
 LIB    = libmustache.a
 DFLAGS = -Isrc -m$(MODEL) -w -d -property
@@ -13,7 +9,7 @@ DFLAGS = -Isrc -m$(MODEL) -w -d -property
 ifeq ($(BUILD),debug)
 	DFLAGS += -g -debug
 else
-	DFLAGS += -O -release -nofloat -inline
+	DFLAGS += -O -release -nofloat -inline -noboundscheck
 endif
 
 NAMES = mustache
