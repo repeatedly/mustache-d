@@ -13,5 +13,5 @@ void main()
     context["taxed_value"] = 10000 - (10000 * 0.4);
     context.useSection("in_ca");
 
-    write(mustache.render("example/basic", context));
+    stdout.rawWrite(mustache.render("example/basic", context));
 }
