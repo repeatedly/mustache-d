@@ -33,5 +33,5 @@ void main()
 
     mustache.path  = "example";
     mustache.level = Mustache.CacheLevel.no;
-    write(mustache.render("projects", context));
+    stdout.rawWrite(mustache.render("projects", context));
 }
