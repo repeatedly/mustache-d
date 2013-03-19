@@ -1,0 +1,12 @@
+{
+    "name":        "mustache-d",
+    "description": "Mustache template engine for D.",
+    "authors":     ["Masahiro Nakagawa"],
+    "homepage":    "https://github.com/repeatedly/mustache-d",
+    "license":     "Boost Software License, Version 1.0",
+    "copyright":   "Copyright (c) 2011 Masahiro Nakagawa",
+    
+    "importPaths": ["src"],
+    "dflags-dmd":  ["-w", "-d", "-property"],
+    "targetType":  "library"
+}
