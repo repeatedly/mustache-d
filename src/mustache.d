@@ -14,6 +14,7 @@ import std.conv;     // to
 import std.datetime; // SysTime (I think std.file should import std.datetime as public)
 import std.file;     // read, timeLastModified
 import std.path;     // buildPath
+import std.range;    // isOutputRange
 import std.string;   // strip, chomp, stripLeft
 import std.traits;   // isSomeString, isAssociativeArray
 
@@ -525,7 +526,18 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      * Throws:
      *  object.Exception if String alignment is mismatched from template file.
      */
-    String render(in string name, in Context context)
+    String render()(in string name, in Context context)
+    {
+        auto sink = appender!String();
+        render(name, context, sink);
+        return sink.data;
+    }
+    
+    /**
+    * OutputRange version of $(D render).
+    */
+    void render(Sink)(in string name, in Context context, ref Sink sink)
+        if(isOutputRange!(Sink, String))
     {
         /*
          * Helper for file reading
@@ -561,15 +573,26 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             break;
         }
 
-        return renderImpl(nodes, context);
+        renderImpl(nodes, context, sink);
     }
 
     /**
      * string version of $(D render).
      */
-    String renderString(in String src, in Context context)
+    String renderString()(in String src, in Context context)
     {
-        return renderImpl(compile(src), context);
+        auto sink = appender!String();
+        renderString(src, context, sink);
+        return sink.data;
+    }
+
+    /**
+     * string/OutputRange version of $(D render).
+     */
+    void renderString(Sink)(in String src, in Context context, ref Sink sink)
+        if(isOutputRange!(Sink, String))
+    {
+        renderImpl(compile(src), context, sink);
     }
 
 
@@ -577,14 +600,14 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     /*
      * Implemention of render function.
      */
-    String renderImpl(in Node[] nodes, in Context context)
+    void renderImpl(Sink)(in Node[] nodes, in Context context, ref Sink sink)
+        if(isOutputRange!(Sink, String))
     {
         // helper for HTML escape(original function from std.xml.encode)
-        static String encode(in String text)
+        static void encode(in String text, ref Sink sink)
         {
             size_t index;
-            auto   result = appender!String();
-
+            
             foreach (i, c; text) {
                 String temp;
 
@@ -596,88 +619,85 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 default: continue;
                 }
 
-                result.put(text[index .. i]);
-                result.put(temp);
+                sink.put(text[index .. i]);
+                sink.put(temp);
                 index = i + 1;
             }
 
-            if (!result.data)
-                return text;
-
-            result.put(text[index .. $]);
-            return result.data;
+            sink.put(text[index .. $]);
         }
-
-        String result;
 
         foreach (ref node; nodes) {
             final switch (node.type) {
             case NodeType.text:
-                result ~= node.text;
+                sink.put(node.text);
                 break;
             case NodeType.var:
                 auto value = context.fetch(node.key, option_.handler);
                 if (value)
-                    result ~= node.flag ? value : encode(value);
+                {
+                    if(node.flag)
+                        sink.put(value);
+                    else
+                        encode(value, sink);
+                }
                 break;
             case NodeType.section:
                 auto type = context.fetchableSectionType(node.key);
                 final switch (type) {
                 case Context.SectionType.nil:
                     if (node.flag)
-                        result ~= renderImpl(node.childs, context);
+                        renderImpl(node.childs, context, sink);
                     break;
                 case Context.SectionType.use:
                     if (!node.flag)
-                        result ~= renderImpl(node.childs, context);
+                        renderImpl(node.childs, context, sink);
                     break;
                 case Context.SectionType.var:
                     auto var = context.fetchVar(node.key);
                     if (!var) {
                         if (node.flag)
-                            result ~= renderImpl(node.childs, context);
+                            renderImpl(node.childs, context, sink);
                     } else {
                         auto sub = new Context(context);
                         foreach (k, v; var)
                             sub[k] = v;
-                        result ~= renderImpl(node.childs, sub);
+                        renderImpl(node.childs, sub, sink);
                     }
                     break;
                 case Context.SectionType.func:
                     auto func = context.fetchFunc(node.key);
                     if (!func) {
                         if (node.flag)
-                            result ~= renderImpl(node.childs, context);
+                            renderImpl(node.childs, context, sink);
                     } else {
-                        result ~= renderImpl(compile(func(node.source)), context);
+                        renderImpl(compile(func(node.source)), context, sink);
                     }
                     break;
                 case Context.SectionType.list:
                     auto list = context.fetchList(node.key);
                     if (!list) {
                         if (node.flag)
-                            result ~= renderImpl(node.childs, context);
+                            renderImpl(node.childs, context, sink);
                     } else {
                         foreach (sub; list)
-                            result ~= renderImpl(node.childs, sub);
+                            renderImpl(node.childs, sub, sink);
                     }
                     break;
                 }
                 break;
             case NodeType.partial:
-                result ~= render(to!string(node.key), context);
+                render(to!string(node.key), context, sink);
                 break;
             }
         }
-
-        return result;
     }
 
 
     unittest
     {
         MustacheEngine!(String) m;
-        auto render = &m.renderString;
+        auto render = (String str, Context c) => m.renderString(str, c);
 
         { // var
             auto context = new Context;
