@@ -512,6 +512,16 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     }
 
     /**
+     * Clears the intenal cache.
+     * Useful for forcing reloads when using CacheLevel.once.
+     */
+    @safe
+    void clearCache()
+    {
+        caches_ = null;
+    }
+
+    /**
      * Renders $(D_PARAM name) template with $(D_PARAM context).
      *
      * This method stores compile result in memory if you set check or once CacheLevel.
