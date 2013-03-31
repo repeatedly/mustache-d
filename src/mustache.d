@@ -9,6 +9,7 @@
  */
 module mustache;
 
+import std.algorithm : all;
 import std.array;    // empty, back, popBack, appender
 import std.conv;     // to
 import std.datetime; // SysTime (I think std.file should import std.datetime as public)
@@ -17,6 +18,8 @@ import std.path;     // buildPath
 import std.range;    // isOutputRange
 import std.string;   // strip, chomp, stripLeft
 import std.traits;   // isSomeString, isAssociativeArray
+
+static import std.ascii; // isWhite, newline;
 
 version(unittest) import core.thread;
 
@@ -738,15 +741,15 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
 
             assert(render("{{#repo}}\n  <b>{{name}}</b>\n{{/repo}}", context) ==
-                   "\n  <b>resque</b>\n  <b>hub</b>\n  <b>rip</b>");
+                   "  <b>resque</b>\n  <b>hub</b>\n  <b>rip</b>\n");
         }
         { // var section
             auto context = new Context;
             String[String] aa = ["name" : "Ritsu"];
             context["person?"] = aa;
 
-            assert(render("{{#person?}}\n  Hi {{name}}!\n{{/person?}}", context) ==
-                   "\n  Hi Ritsu!");
+            assert(render("{{#person?}}  Hi {{name}}!\n{{/person?}}", context) ==
+                   "  Hi Ritsu!\n");
         }
         { // inverted section
             String temp  = "{{#repo}}\n<b>{{name}}</b>\n{{/repo}}\n{{^repo}}\nNo repos :(\n{{/repo}}\n";
@@ -781,11 +784,30 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      */
     static Node[] compile(String src)
     {
+        bool beforeNewline = true;
+
         // strip previous whitespace
-        void fixWS(ref Node node)
+        bool fixWS(ref Node node)
         {
-            if (node.type == NodeType.text)
-                node.text = node.text.chomp();
+            // TODO: refactor and optimize with enum
+            if (node.type == NodeType.text) {
+                if (beforeNewline) {
+                    if (all!(std.ascii.isWhite)(node.text)) {
+                        node.text = "";
+                        return true;
+                    }
+                }
+
+                auto i = node.text.lastIndexOf('\n');
+                if (i != -1) {
+                    if (all!(std.ascii.isWhite)(node.text[i + 1..$])) {
+                        node.text = node.text[0..i + 1];
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         String sTag = "{{";
@@ -811,8 +833,14 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
         Node[] result;
         Memo[] stack;   // for nested section
+        bool singleLineSection;
 
         while (true) {
+            if (singleLineSection) {
+                src = chompPrefix(src, std.ascii.newline);
+                singleLineSection = false;
+            }
+
             auto hit = src.indexOf(sTag);
             if (hit == -1) {  // rest template does not have tags
                 if (src.length > 0)
@@ -831,8 +859,14 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             immutable type = src[0];
             switch (type) {
             case '#': case '^':
-                if (result.length)
-                    fixWS(result[$ - 1]);
+                if (result.length == 0) {  // for start of template
+                    singleLineSection = true;
+                } else if (result.length > 0) {
+                    if (src[end + eTag.length] == '\n') {
+                        singleLineSection = fixWS(result[$ - 1]);
+                        beforeNewline = false;
+                    }
+                }
 
                 auto key = src[1..end].strip();
                 result ~= Node(NodeType.section, key, type == '^');
@@ -847,7 +881,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 if (key != memo.key)
                     throw new MustacheException(to!string(key) ~ " is different from expected " ~ to!string(memo.key));
 
-                fixWS(result[$ - 1]);
+                if (src.length == (end + eTag.length)) // for end of template
+                    fixWS(result[$ - 1]);
+                if ((src.length > (end + eTag.length)) && (src[end + eTag.length] == '\n')) {
+                    singleLineSection = fixWS(result[$ - 1]);
+                    beforeNewline = false;
+                }
 
                 auto temp = result;
                 result = memo.nodes;
@@ -902,12 +941,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             auto childs = nodes[0].childs;
             assert(childs[0].type == NodeType.text);
-            assert(childs[0].text == "\nWell, $");
+            assert(childs[0].text == "Well, $");
             assert(childs[1].type == NodeType.var);
             assert(childs[1].key  == "taxed_value");
             assert(childs[1].flag == false);
             assert(childs[2].type == NodeType.text);
-            assert(childs[2].text == ", after taxes.");
+            assert(childs[2].text == ", after taxes.\n");
         }
         {  // inverted section
             auto nodes = compile("{{^repo}}\n  No repos :(\n{{/repo}}\n");
@@ -917,7 +956,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             auto childs = nodes[0].childs;
             assert(childs[0].type == NodeType.text);
-            assert(childs[0].text == "\n  No repos :(");
+            assert(childs[0].text == "  No repos :(\n");
         }
         {  // partial and set delimiter
             auto nodes = compile("{{=<% %>=}}<%> erb_style %>");
