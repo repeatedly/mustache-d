@@ -76,7 +76,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
 
   public:
-    alias String delegate() Handler;
+    alias String delegate(String) Handler;
 
 
     /**
@@ -344,7 +344,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 return *result;
 
             if (parent is null)
-                return handler is null ? null : handler()();
+                return handler is null ? null : handler()(key);
 
             return parent.fetch(key);
         }
@@ -423,8 +423,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(context.fetchFunc("Wrapped")("Ritsu") == func("Ritsu"));
         }
         { // handler
-            Handler fixme = delegate String() { return "FIXME"; };
-            Handler error = delegate String() { throw new MustacheException("Unknow"); };
+            Handler fixme = delegate String(String s) { assert(s=="unknown"); return "FIXME"; };
+            Handler error = delegate String(String s) { assert(s=="unknown"); throw new MustacheException("Unknow"); };
 
             assert(context.fetch("unknown") == "");
             assert(context.fetch("unknown", fixme) == "FIXME");
@@ -724,10 +724,10 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             auto context = new Context;
             context["name"] = "Ritsu & Mio";
 
-            m.handler = delegate String() { return "FIXME"; };
+            m.handler = delegate String(String s) { assert(s=="unknown"); return "FIXME"; };
             assert(render("Hello {{unknown}}", context) == "Hello FIXME");
 
-            m.handler = delegate String() { throw new MustacheException("Unknow"); };
+            m.handler = delegate String(String s) { assert(s=="unknown"); throw new MustacheException("Unknow"); };
             try {
                 assert(render("Hello {{&unknown}}", context) == "Hello Ritsu & Mio");
                 assert(false);
