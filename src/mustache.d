@@ -877,7 +877,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 auto key = src[1..end].strip();
                 if (stack.empty)
                     throw new MustacheException(to!string(key) ~ " is unopened");
-                auto memo = stack.back; stack.popBack();
+                auto memo = stack.back; stack.popBack(); stack.assumeSafeAppend();
                 if (key != memo.key)
                     throw new MustacheException(to!string(key) ~ " is different from expected " ~ to!string(memo.key));
 
