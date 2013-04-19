@@ -693,8 +693,10 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                         if (node.flag)
                             renderImpl(node.childs, context, sink);
                     } else {
-                        foreach (sub; list)
-                            renderImpl(node.childs, sub, sink);
+                        if (!node.flag) {
+                            foreach (sub; list)
+                                renderImpl(node.childs, sub, sink);
+                        }
                     }
                     break;
                 }
