@@ -754,13 +754,21 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                    "  Hi Ritsu!\n");
         }
         { // inverted section
-            String temp  = "{{#repo}}\n<b>{{name}}</b>\n{{/repo}}\n{{^repo}}\nNo repos :(\n{{/repo}}\n";
-            auto context = new Context;
-            assert(render(temp, context) == "\nNo repos :(\n");
+            {
+                String temp  = "{{#repo}}\n<b>{{name}}</b>\n{{/repo}}\n{{^repo}}\nNo repos :(\n{{/repo}}\n";
+                auto context = new Context;
+                assert(render(temp, context) == "\nNo repos :(\n");
 
-            String[String] aa;
-            context["person?"] = aa;
-            assert(render(temp, context) == "\nNo repos :(\n");
+                String[String] aa;
+                context["person?"] = aa;
+                assert(render(temp, context) == "\nNo repos :(\n");
+            }
+            {
+                auto temp = "{{^section}}This shouldn't be seen.{{/section}}";
+                auto context = new Context;
+                context.addSubContext("section")["foo"] = "bar";
+                assert(render(temp, context).empty);
+            }
         }
         { // comment
             auto context = new Context;
