@@ -674,10 +674,10 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     break;
                 case Context.SectionType.var:
                     auto var = section.var;
-					auto sub = new Context(context);
-					foreach (k, v; var)
-						sub[k] = v;
-					renderImpl(node.childs, sub, sink);
+                    auto sub = new Context(context);
+                    foreach (k, v; var)
+                        sub[k] = v;
+                    renderImpl(node.childs, sub, sink);
                     break;
                 case Context.SectionType.func:
                     auto func = section.func;
@@ -685,10 +685,10 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     break;
                 case Context.SectionType.list:
                     auto list = section.list;
-					if (!node.flag) {
-						foreach (sub; list)
-							renderImpl(node.childs, sub, sink);
-					}
+                    if (!node.flag) {
+                        foreach (sub; list)
+                            renderImpl(node.childs, sub, sink);
+                    }
                     break;
                 }
                 break;
