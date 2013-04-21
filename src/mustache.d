@@ -209,6 +209,15 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     return !list.length;
                 }
             }
+            
+            /* Convenience function */
+            @safe @property
+            static Section nil() nothrow
+            {
+                Section result;
+                result.type = SectionType.nil;
+                return result;
+            }
         }
 
         const Context   parent;
@@ -349,30 +358,27 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             return parent.fetch(key);
         }
 
-        @safe
-        SectionType fetchableSectionType(in String key) const nothrow
+        @trusted
+        const(Section) fetchSection()(in String key) const /* nothrow */
         {
             auto result = key in sections;
             if (result !is null)
-                return result.type;
+                return result.empty ? Section.nil : *result;
 
             if (parent is null)
-                return SectionType.nil;
+                return Section.nil;
 
-            return parent.fetchableSectionType(key);
+            return parent.fetchSection(key);
         }
 
         @trusted
         const(Result) fetchSection(Result, SectionType type, string name)(in String key) const /* nothrow */
         {
-            auto result = key in sections;
-            if (result !is null && result.type == type)
+            auto result = fetchSection(key);
+            if (result.type == type)
                 return result.empty ? null : mixin("result." ~ to!string(type));
-
-            if (parent is null)
-                return null;
-
-            return mixin("parent.fetch" ~ name ~ "(key)");
+            
+            return null;
         }
 
         alias fetchSection!(String[String],          SectionType.var,  "Var")  fetchVar;
@@ -656,8 +662,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 }
                 break;
             case NodeType.section:
-                auto type = context.fetchableSectionType(node.key);
-                final switch (type) {
+                auto section = context.fetchSection(node.key);
+                final switch (section.type) {
                 case Context.SectionType.nil:
                     if (node.flag)
                         renderImpl(node.childs, context, sink);
@@ -667,37 +673,22 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                         renderImpl(node.childs, context, sink);
                     break;
                 case Context.SectionType.var:
-                    auto var = context.fetchVar(node.key);
-                    if (!var) {
-                        if (node.flag)
-                            renderImpl(node.childs, context, sink);
-                    } else {
-                        auto sub = new Context(context);
-                        foreach (k, v; var)
-                            sub[k] = v;
-                        renderImpl(node.childs, sub, sink);
-                    }
+                    auto var = section.var;
+					auto sub = new Context(context);
+					foreach (k, v; var)
+						sub[k] = v;
+					renderImpl(node.childs, sub, sink);
                     break;
                 case Context.SectionType.func:
-                    auto func = context.fetchFunc(node.key);
-                    if (!func) {
-                        if (node.flag)
-                            renderImpl(node.childs, context, sink);
-                    } else {
-                        renderImpl(compile(func(node.source)), context, sink);
-                    }
+                    auto func = section.func;
+                    renderImpl(compile(func(node.source)), context, sink);
                     break;
                 case Context.SectionType.list:
-                    auto list = context.fetchList(node.key);
-                    if (!list) {
-                        if (node.flag)
-                            renderImpl(node.childs, context, sink);
-                    } else {
-                        if (!node.flag) {
-                            foreach (sub; list)
-                                renderImpl(node.childs, sub, sink);
-                        }
-                    }
+                    auto list = section.list;
+					if (!node.flag) {
+						foreach (sub; list)
+							renderImpl(node.childs, sub, sink);
+					}
                     break;
                 }
                 break;
