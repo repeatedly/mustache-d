@@ -730,7 +730,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 }
                 break;
             case NodeType.partial:
-                render(to!string(node.key), context, sink);
+                render(to!string(node.key.front), context, sink);
                 break;
             }
         }
