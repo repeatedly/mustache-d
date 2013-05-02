@@ -346,33 +346,70 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
         @trusted
-        String fetch(in String key, lazy Handler handler = null) const
+        String fetch(in String[] key, lazy Handler handler = null) const
         {
-            auto result = key in variables;
-            if (result !is null)
-                return *result;
+            assert(key.length > 0);
+            
+            if (key.length == 1) {
+                auto result = key[0] in variables;
 
-            if (parent is null)
-                return handler is null ? null : handler()(key);
+                if (result !is null)
+                    return *result;
 
-            return parent.fetch(key);
+                if (parent !is null)
+                    return parent.fetch(key, handler);
+            } else {
+                auto contexts = fetchList(key[0..$-1]);
+                foreach (c; contexts) {
+                    auto result = key[$-1] in c.variables;
+
+                    if (result !is null)
+                        return *result;
+                }
+            }
+            
+            return handler is null ? null : handler()(keyToString(key));
         }
 
         @trusted
-        const(Section) fetchSection()(in String key) const /* nothrow */
+        const(Section) fetchSection()(in String[] key) const /* nothrow */
         {
-            auto result = key in sections;
-            if (result !is null)
-                return result.empty ? Section.nil : *result;
+            assert(key.length > 0);
+            
+            // Ascend context tree to find the key's beginning
+            auto currentSection = key[0] in sections;
+            if (currentSection is null) {
+                if (parent is null)
+                    return Section.nil;
 
-            if (parent is null)
-                return Section.nil;
+                return parent.fetchSection(key);
+            }
+            
+            // Decend context tree to match the rest of the key
+            size_t keyIndex = 0;
+            while (currentSection) {
+                // Matched the entire key?
+                if (keyIndex == key.length-1)
+                    return currentSection.empty ? Section.nil : *currentSection;
+                
+                if (currentSection.type != SectionType.list)
+                    return Section.nil; // Can't decend any further
+                
+                // Find next part of key
+                keyIndex++;
+                foreach (c; currentSection.list)
+                {
+                    currentSection = key[keyIndex] in c.sections;
+                    if (currentSection)
+                        break;
+                }
+            }
 
-            return parent.fetchSection(key);
+            return Section.nil;
         }
 
         @trusted
-        const(Result) fetchSection(Result, SectionType type, string name)(in String key) const /* nothrow */
+        const(Result) fetchSection(Result, SectionType type, string name)(in String[] key) const /* nothrow */
         {
             auto result = fetchSection(key);
             if (result.type == type)
@@ -406,12 +443,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 }
             }
 
-            foreach (i, sub; context.fetchList("sub")) {
-                assert(sub.fetch("name") == "Red Bull");
+            foreach (i, sub; context.fetchList(["sub"])) {
+                assert(sub.fetch(["name"]) == "Red Bull");
                 assert(sub["num"] == to!String(i + 100));
 
-                foreach (j, subsub; sub.fetchList("subsub")) {
-                    assert(subsub.fetch("price") == to!String(275));
+                foreach (j, subsub; sub.fetchList(["subsub"])) {
+                    assert(subsub.fetch(["price"]) == to!String(275));
                     assert(subsub["To be or not to be"] == to!String(j == 0));
                 }
             }
@@ -420,22 +457,22 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             String[String] aa = ["name" : "Ritsu"];
 
             context["Value"] = aa;
-            assert(context.fetchVar("Value") == cast(const)aa);
+            assert(context.fetchVar(["Value"]) == cast(const)aa);
         }
         { // func
             auto func = function (String str) { return "<b>" ~ str ~ "</b>"; };
 
             context["Wrapped"] = func;
-            assert(context.fetchFunc("Wrapped")("Ritsu") == func("Ritsu"));
+            assert(context.fetchFunc(["Wrapped"])("Ritsu") == func("Ritsu"));
         }
         { // handler
             Handler fixme = delegate String(String s) { assert(s=="unknown"); return "FIXME"; };
             Handler error = delegate String(String s) { assert(s=="unknown"); throw new MustacheException("Unknow"); };
 
-            assert(context.fetch("unknown") == "");
-            assert(context.fetch("unknown", fixme) == "FIXME");
+            assert(context.fetch(["unknown"]) == "");
+            assert(context.fetch(["unknown"], fixme) == "FIXME");
             try {
-                assert(context.fetch("unknown", error) == "");
+                assert(context.fetch(["unknown"], error) == "");
                 assert(false);
             } catch (const MustacheException e) { }
         }
@@ -693,7 +730,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 }
                 break;
             case NodeType.partial:
-                render(to!string(node.key), context, sink);
+                render(to!string(node.key.front), context, sink);
                 break;
             }
         }
@@ -725,6 +762,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 assert(render("Hello {{&unknown}}", context) == "Hello Ritsu & Mio");
                 assert(false);
             } catch (const MustacheException e) {}
+
+            m.handler = null;
         }
         { // list section
             auto context = new Context;
@@ -778,6 +817,41 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(render("<h2>Names</h2>\n{{#names}}\n  {{> user}}\n{{/names}}\n", context) ==
                    "<h2>Names</h2>\n  <strong>Ritsu</strong>\n  <strong>Mio</strong>\n");
         }
+        { // dotted names
+            auto context = new Context;
+            context
+                .addSubContext("a")
+                .addSubContext("b")
+                .addSubContext("c")
+                .addSubContext("person")["name"] = "Ritsu";
+            context
+                .addSubContext("b")
+                .addSubContext("c")
+                .addSubContext("person")["name"] = "Wrong";
+
+            assert(render("Hello {{a.b.c.person.name}}",                  context) == "Hello Ritsu");
+            assert(render("Hello {{#a}}{{b.c.person.name}}{{/a}}",        context) == "Hello Ritsu");
+            assert(render("Hello {{# a . b }}{{c.person.name}}{{/a.b}}",  context) == "Hello Ritsu");
+        }
+        { // dotted names - context precedence
+            auto context = new Context;
+            context.addSubContext("a").addSubContext("b")["X"] = "Y";
+            context.addSubContext("b")["c"] = "ERROR";
+
+            assert(render("-{{#a}}{{b.c}}{{/a}}-", context) == "--");
+        }
+        { // dotted names - broken chains
+            auto context = new Context;
+            context.addSubContext("a")["X"] = "Y";
+            assert(render("-{{a.b.c}}-", context) == "--");
+        }
+        { // dotted names - broken chain resolution
+            auto context = new Context;
+            context.addSubContext("a").addSubContext("b")["X"] = "Y";
+            context.addSubContext("c")["name"] = "ERROR";
+
+            assert(render("-{{a.b.c.name}}-", context) == "--");
+        }
     }
 
     /*
@@ -823,13 +897,29 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             sTag = src[0..i];
             eTag = src[i + 1..$].stripLeft();
         }
-
+        
+        size_t getEnd(String src)
+        {
+            auto end = src.indexOf(eTag);
+            if (end == -1)
+                throw new MustacheException("Mustache tag is not closed");
+            
+            return end;
+        }
+        
         // State capturing for section
         struct Memo
         {
-            String key;
-            Node[] nodes;
-            String source;
+            String[] key;
+            Node[]   nodes;
+            String   source;
+            
+            bool opEquals()(auto ref const Memo m) inout
+            {
+                // Don't compare source because the internal
+                // whitespace might be different
+                return key == m.key && nodes == m.nodes;
+            }
         }
 
         Node[] result;
@@ -853,9 +943,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 src = src[hit + sTag.length..$];
             }
 
-            auto end = src.indexOf(eTag);
-            if (end == -1)
-                throw new MustacheException("Mustache tag is not closed");
+            size_t end;
 
             immutable type = src[0];
             switch (type) {
@@ -869,13 +957,15 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     }
                 }
 
-                auto key = src[1..end].strip();
+                src = src[1..$];
+                auto key = parseKey(src, eTag, end);
                 result ~= Node(NodeType.section, key, type == '^');
                 stack  ~= Memo(key, result, src[end + eTag.length..$]);
                 result  = null;
                 break;
             case '/':
-                auto key = src[1..end].strip();
+                src = src[1..$];
+                auto key = parseKey(src, eTag, end);
                 if (stack.empty)
                     throw new MustacheException(to!string(key) ~ " is unopened");
                 auto memo = stack.back; stack.popBack(); stack.assumeSafeAppend();
@@ -892,28 +982,38 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 auto temp = result;
                 result = memo.nodes;
                 result[$ - 1].childs = temp;
-                result[$ - 1].source = memo.source[0..src.ptr - memo.source.ptr - eTag.length];
+                result[$ - 1].source = memo.source[0..src.ptr - memo.source.ptr - 1 - eTag.length];
                 break;
             case '>':
                 // TODO: If option argument exists, this function can read and compile partial file.
-                result ~= Node(NodeType.partial, src[1..end].strip());
+                end = getEnd(src);
+                result ~= Node(NodeType.partial, [src[1..end].strip()]);
                 break;
             case '=':
+                end = getEnd(src);
                 setDelimiter(src[1..end - 1]);
                 break;
             case '!':
+                end = getEnd(src);
                 break;
             case '{':
-                auto pos = end + eTag.length;
-                if (pos >= src.length || src[pos] != '}')
-                    throw new MustacheException("Unescaped tag is mismatched");
-                result ~= Node(NodeType.var, src[1..end++].strip(), true);
+                src = src[1..$];
+                auto key = parseKey(src, "}", end);
+                
+                end += 1;
+                if (end >= src.length || !src[end..$].startsWith(eTag))
+                    throw new MustacheException("Unescaped tag is not closed");
+                
+                result ~= Node(NodeType.var, key, true);
                 break;
             case '&':
-                result ~= Node(NodeType.var, src[1..end].strip(), true);
+                src = src[1..$];
+                auto key = parseKey(src, eTag, end);
+                result ~= Node(NodeType.var, key, true);
                 break;
             default:
-                result ~= Node(NodeType.var, src[0..end].strip());
+                auto key = parseKey(src, eTag, end);
+                result ~= Node(NodeType.var, key);
                 break;
             }
 
@@ -930,13 +1030,13 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(nodes[0].type == NodeType.text);
             assert(nodes[0].text == "Hello ");
             assert(nodes[1].type == NodeType.var);
-            assert(nodes[1].key  == "name");
+            assert(nodes[1].key  == ["name"]);
             assert(nodes[1].flag == true);
         }
         {  // section and escape
             auto nodes = compile("{{#in_ca}}\nWell, ${{taxed_value}}, after taxes.\n{{/in_ca}}\n");
             assert(nodes[0].type   == NodeType.section);
-            assert(nodes[0].key    == "in_ca");
+            assert(nodes[0].key    == ["in_ca"]);
             assert(nodes[0].flag   == false);
             assert(nodes[0].source == "\nWell, ${{taxed_value}}, after taxes.\n");
 
@@ -944,7 +1044,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             assert(childs[0].type == NodeType.text);
             assert(childs[0].text == "Well, $");
             assert(childs[1].type == NodeType.var);
-            assert(childs[1].key  == "taxed_value");
+            assert(childs[1].key  == ["taxed_value"]);
             assert(childs[1].flag == false);
             assert(childs[2].type == NodeType.text);
             assert(childs[2].text == ", after taxes.\n");
@@ -952,7 +1052,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         {  // inverted section
             auto nodes = compile("{{^repo}}\n  No repos :(\n{{/repo}}\n");
             assert(nodes[0].type == NodeType.section);
-            assert(nodes[0].key  == "repo");
+            assert(nodes[0].key  == ["repo"]);
             assert(nodes[0].flag == true);
 
             auto childs = nodes[0].childs;
@@ -962,11 +1062,182 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         {  // partial and set delimiter
             auto nodes = compile("{{=<% %>=}}<%> erb_style %>");
             assert(nodes[0].type == NodeType.partial);
-            assert(nodes[0].key  == "erb_style");
+            assert(nodes[0].key  == ["erb_style"]);
         }
     }
 
+    private static String[] parseKey(String src, String eTag, out size_t end)
+    {
+        String[] key;
+        size_t index = 0;
+        size_t keySegmentStart = 0;
+        // Index from before eating whitespace, so stripRight
+        // doesn't need to be called on each segment of the key.
+        size_t beforeEatWSIndex = 0;
 
+        void advance(size_t length)
+        {
+            if (index + length >= src.length)
+                throw new MustacheException("Mustache tag is not closed");
+
+            index += length;
+            beforeEatWSIndex = index;
+        }
+
+        void eatWhitespace()
+        {
+            beforeEatWSIndex = index;
+            index = src.length - src[index..$].stripLeft().length;
+        }
+        
+        void acceptKeySegment()
+        {
+            if (keySegmentStart >= beforeEatWSIndex)
+                throw new MustacheException("Missing tag name");
+
+            key ~= src[keySegmentStart .. beforeEatWSIndex];
+        }
+        
+        eatWhitespace();
+        keySegmentStart = index;
+
+        enum String dot = ".";
+        while (true) {
+            if (src[index..$].startsWith(eTag)) {
+                acceptKeySegment();
+                break;
+            } else if (src[index..$].startsWith(dot)) {
+                acceptKeySegment();
+                advance(dot.length);
+                eatWhitespace();
+                keySegmentStart = index;
+            } else {
+                advance(1);
+                eatWhitespace();
+            }
+        }
+        
+        end = index;
+        return key;
+    }
+
+    unittest
+    {
+        {  // single char, single segment, no whitespace
+            size_t end;
+            String src = "a}}";
+            auto key = parseKey(src, "}}", end);
+            assert(key.length == 1);
+            assert(key[0] == "a");
+            assert(src[end..$] == "}}");
+        }
+        {  // multiple chars, single segment, no whitespace
+            size_t end;
+            String src = "Mio}}";
+            auto key = parseKey(src, "}}", end);
+            assert(key.length == 1);
+            assert(key[0] == "Mio");
+            assert(src[end..$] == "}}");
+        }
+        {  // single char, multiple segments, no whitespace
+            size_t end;
+            String src = "a.b.c}}";
+            auto key = parseKey(src, "}}", end);
+            assert(key.length == 3);
+            assert(key[0] == "a");
+            assert(key[1] == "b");
+            assert(key[2] == "c");
+            assert(src[end..$] == "}}");
+        }
+        {  // multiple chars, multiple segments, no whitespace
+            size_t end;
+            String src = "Mio.Ritsu.Yui}}";
+            auto key = parseKey(src, "}}", end);
+            assert(key.length == 3);
+            assert(key[0] == "Mio");
+            assert(key[1] == "Ritsu");
+            assert(key[2] == "Yui");
+            assert(src[end..$] == "}}");
+        }
+        {  // whitespace
+            size_t end;
+            String src = "  Mio  .  Ritsu  }}";
+            auto key = parseKey(src, "}}", end);
+            assert(key.length == 2);
+            assert(key[0] == "Mio");
+            assert(key[1] == "Ritsu");
+            assert(src[end..$] == "}}");
+        }
+        {  // single char custom end delimiter
+            size_t end;
+            String src = "Ritsu-";
+            auto key = parseKey(src, "-", end);
+            assert(key.length == 1);
+            assert(key[0] == "Ritsu");
+            assert(src[end..$] == "-");
+        }
+        {  // extra chars at end
+            size_t end;
+            String src = "Ritsu}}abc";
+            auto key = parseKey(src, "}}", end);
+            assert(key.length == 1);
+            assert(key[0] == "Ritsu");
+            assert(src[end..$] == "}}abc");
+        }
+        {  // error: no end delimiter
+            size_t end;
+            String src = "a.b.c";
+            try {
+                auto key = parseKey(src, "}}", end);
+                assert(false);
+            } catch (const MustacheException e) { }
+        }
+        {  // error: missing tag name
+            size_t end;
+            String src = "  }}";
+            try {
+                auto key = parseKey(src, "}}", end);
+                assert(false);
+            } catch (const MustacheException e) { }
+        }
+        {  // error: missing ending tag name
+            size_t end;
+            String src = "Mio.}}";
+            try {
+                auto key = parseKey(src, "}}", end);
+                assert(false);
+            } catch (const MustacheException e) { }
+        }
+        {  // error: missing middle tag name
+            size_t end;
+            String src = "Mio. .Ritsu}}";
+            try {
+                auto key = parseKey(src, "}}", end);
+                assert(false);
+            } catch (const MustacheException e) { }
+        }
+    }
+    
+    @trusted
+    static String keyToString(in String[] key)
+    {
+        if (key.length == 0)
+            return null;
+        
+        if (key.length == 1)
+            return key[0];
+        
+        Appender!String buf;
+        foreach (index, segment; key) {
+            if (index != 0)
+                buf.put('.');
+            
+            buf.put(segment);
+        }
+        
+        return buf.data;
+    }
+    
     /*
      * Mustache's node types
      */
@@ -992,10 +1263,10 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             struct
             {
-                String key;
-                bool   flag;    // true is inverted or unescape
-                Node[] childs;  // for list section
-                String source;  // for lambda section
+                String[] key;
+                bool     flag;    // true is inverted or unescape
+                Node[]   childs;  // for list section
+                String   source;  // for lambda section
             }
         }
 
@@ -1021,7 +1292,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
              *   k = key string of tag
              *   f = invert? or escape?
              */
-            this(NodeType t, String k, bool f = false)
+            this(NodeType t, String[] k, bool f = false)
             {
                 type = t;
                 key  = k;
@@ -1038,22 +1309,22 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         string toString() const
         {
             string result;
-
+            
             final switch (type) {
             case NodeType.text:
                 result = "[T : \"" ~ to!string(text) ~ "\"]";
                 break;
             case NodeType.var:
-                result = "[" ~ (flag ? "E" : "V") ~ " : \"" ~ to!string(key) ~ "\"]";
+                result = "[" ~ (flag ? "E" : "V") ~ " : \"" ~ keyToString(key) ~ "\"]";
                 break;
             case NodeType.section:
-                result = "[" ~ (flag ? "I" : "S") ~ " : \"" ~ to!string(key) ~ "\", [ ";
+                result = "[" ~ (flag ? "I" : "S") ~ " : \"" ~ keyToString(key) ~ "\", [ ";
                 foreach (ref node; childs)
                     result ~= node.toString() ~ " ";
                 result ~= "], \"" ~ to!string(source) ~ "\"]";
                 break;
             case NodeType.partial:
-                result = "[P : \"" ~ to!string(key) ~ "\"]";
+                result = "[P : \"" ~ keyToString(key) ~ "\"]";
                 break;
             }
 
@@ -1067,12 +1338,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         Node[] nodes, childs;
 
         nodes ~= Node("Hi ");
-        nodes ~= Node(NodeType.var, "name");
-        nodes ~= Node(NodeType.partial, "redbull");
+        nodes ~= Node(NodeType.var, ["name"]);
+        nodes ~= Node(NodeType.partial, ["redbull"]);
         {
             childs ~= Node("Ritsu is ");
-            childs ~= Node(NodeType.var, "attr", true);
-            section = Node(NodeType.section, "ritsu", false);
+            childs ~= Node(NodeType.var, ["attr"], true);
+            section = Node(NodeType.section, ["ritsu"], false);
             section.childs = childs;
             nodes ~= section;
         }
