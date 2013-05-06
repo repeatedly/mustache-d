@@ -948,6 +948,9 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             immutable type = src[0];
             switch (type) {
             case '#': case '^':
+                src = src[1..$];
+                auto key = parseKey(src, eTag, end);
+
                 if (result.length == 0) {  // for start of template
                     singleLineSection = true;
                 } else if (result.length > 0) {
@@ -957,8 +960,6 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     }
                 }
 
-                src = src[1..$];
-                auto key = parseKey(src, eTag, end);
                 result ~= Node(NodeType.section, key, type == '^');
                 stack  ~= Memo(key, result, src[end + eTag.length..$]);
                 result  = null;
