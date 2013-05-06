@@ -19,7 +19,7 @@ import std.range;    // isOutputRange
 import std.string;   // strip, chomp, stripLeft
 import std.traits;   // isSomeString, isAssociativeArray
 
-static import std.ascii; // isWhite, newline;
+static import std.ascii; // isWhite;
 
 version(unittest) import core.thread;
 
@@ -928,7 +928,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
         while (true) {
             if (singleLineSection) {
-                src = chompPrefix(src, std.ascii.newline);
+                src = chompPrefix(src, "\n");
                 singleLineSection = false;
             }
 
