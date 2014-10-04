@@ -4,9 +4,8 @@
     "authors":     ["Masahiro Nakagawa"],
     "homepage":    "https://github.com/repeatedly/mustache-d",
     "license":     "Boost Software License, Version 1.0",
-    "copyright":   "Copyright (c) 2011 Masahiro Nakagawa",
-    
+    "copyright":   "Copyright (c) 2011-. Masahiro Nakagawa",
+    "buildRequirements": ["silenceDeprecations"],
     "importPaths": ["src"],
-    "dflags-dmd":  ["-w", "-d", "-property"],
     "targetType":  "library"
 }
