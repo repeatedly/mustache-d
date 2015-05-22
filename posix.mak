@@ -4,7 +4,7 @@ MODEL ?= $(shell getconf LONG_BIT)
 DMD ?= dmd
 
 LIB    = libmustache.a
-DFLAGS = -Isrc -m$(MODEL) -w -d -property
+DFLAGS = -Isrc -m$(MODEL) -w -d #-property
 
 ifeq ($(BUILD),debug)
 	DFLAGS += -g -debug
