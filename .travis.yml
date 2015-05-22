@@ -1,16 +1,13 @@
 language: d
 
-#compiler:
-#  - dmd
+d:
+  - dmd-2.067.0
+  - dmd-2.066.1
 
 install:
-  # dmd
-  - DMD_VERSION=2.062
-  - wget http://ftp.digitalmars.com/dmd.${DMD_VERSION}.zip
-  - unzip dmd.${DMD_VERSION}.zip
 
 script:
-  - DMD=./dmd2/linux/bin64/dmd MODEL=64 make -f posix.mak unittest
+  - MODEL=64 make -f posix.mak unittest
 
 branches:
   only:
