@@ -190,6 +190,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     type = SectionType.list;
                     list = [c];
                 }
+
+                this(Context[] c)
+                {
+                    type = SectionType.list;
+                    list = c;
+                }
             }
 
             /* nothrow : AA's length is not nothrow */
@@ -256,6 +262,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          * If you try to assign associative array or delegate,
          * This method assigns $(D_PARAM value) as Section.
          *
+         * Arrays of Contexts are accepted, too.
+         *
          * Params:
          *  value = some type value to assign
          *  key   = key string to assign
@@ -286,6 +294,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 static if (is(typeof(v) D == S delegate(S), S : String))
                     sections[key] = Section(v);
                 else static assert(false, "Non-supported delegate type");
+            }
+            else static if (isArray!T && !isSomeString!T)
+            {
+                static if (is(T : Context[]))
+                    sections[key] = Section(value);
+                else static assert(false, "Non-supported array type");
             }
             else
             {
@@ -475,6 +489,16 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 assert(context.fetch(["unknown"], error) == "");
                 assert(false);
             } catch (const MustacheException e) { }
+        }
+        { // subcontext
+            auto sub = new Context();
+            sub["num"] = 42;
+            context["a"] = [sub];
+
+            auto list = context.fetchList(["a"]);
+            assert(list.length == 1);
+            foreach (i, s; list)
+                assert(s["num"] == to!String(42));
         }
     }
 
