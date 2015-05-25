@@ -1,13 +1,9 @@
 language: d
 
 d:
-  - dmd-2.067.0
-  - dmd-2.066.1
-
-install:
-
-script:
-  - MODEL=64 make -f posix.mak unittest
+  - dmd
+  - gdc
+  - ldc
 
 branches:
   only:
