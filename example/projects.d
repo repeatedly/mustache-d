@@ -11,9 +11,9 @@ struct Project
 }
 
 static Project[] projects = [
-    Project("dmd", "https://github.com/D-Programming-Language/dmd", "dmd D Programming Language compiler"),
-    Project("druntime", "https://github.com/D-Programming-Language/druntime", "Low level runtime library for the D programming language"),
-    Project("phobos", "https://github.com/D-Programming-Language/phobos", "Runtime library for the D programming language")
+    Project("dmd", "https://github.com/dlang/dmd", "dmd D Programming Language compiler"),
+    Project("druntime", "https://github.com/dlang/druntime", "Low level runtime library for the D programming language"),
+    Project("phobos", "https://github.com/dlang/phobos", "The standard library of the D programming language")
 ];
 
 void main()
