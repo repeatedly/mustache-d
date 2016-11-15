@@ -166,7 +166,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 Context[]               list;
             }
 
-            @safe nothrow
+            @trusted nothrow
             {
                 this(bool u)
                 {
@@ -1295,7 +1295,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
         }
 
-        @safe nothrow
+        @trusted nothrow
         {
             /**
              * Constructs with arguments.
