@@ -1373,7 +1373,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             nodes ~= section;
         }
 
-        assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], `
+        assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], ` ~
                                    `[S : "ritsu", [ [T : "Ritsu is "] [E : "attr"] ], ""]]`);
     }
 }
