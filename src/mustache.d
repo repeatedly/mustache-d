@@ -166,7 +166,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 Context[]               list;
             }
 
-            @safe nothrow
+            @trusted nothrow
             {
                 this(bool u)
                 {
@@ -1295,7 +1295,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
         }
 
-        @safe nothrow
+        @trusted nothrow
         {
             /**
              * Constructs with arguments.
@@ -1373,7 +1373,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             nodes ~= section;
         }
 
-        assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], `
+        assert(to!string(nodes) == `[[T : "Hi "], [V : "name"], [P : "redbull"], ` ~
                                    `[S : "ritsu", [ [T : "Ritsu is "] [E : "attr"] ], ""]]`);
     }
 }

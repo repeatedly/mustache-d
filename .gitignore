@@ -1,0 +1,9 @@
+*.[oa]
+*.so
+*.lib
+*.dll
+*.exe
+
+.dub/
+__test__*__
+dub.selections.json
