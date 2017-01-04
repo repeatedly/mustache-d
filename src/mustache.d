@@ -77,6 +77,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
   public:
     alias String delegate(String) Handler;
+    alias string delegate(string) FindPath;
 
 
     /**
@@ -97,6 +98,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
     {
         string     ext   = "mustache";        /// template file extenstion
         string     path  = ".";               /// root path for template file searching
+        FindPath   findPath;                  /// dynamically finds the path for a name
         CacheLevel level = CacheLevel.check;  /// See CacheLevel
         Handler    handler;                   /// Callback handler for unknown name
     }
@@ -553,6 +555,21 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         }
 
         /**
+         * Property for callback to dynamically search path.
+         * The result of the delegate should return the full path for
+         * the given name.
+         */
+         void findPath(FindPath findPath) {
+             option_.findPath = findPath;
+         }
+
+         /// ditto
+         FindPath findPath() const {
+             return option_.findPath;
+         }
+
+
+        /**
          * Property for cache level
          */
         const(CacheLevel) level() const
@@ -632,7 +649,12 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             return cast(String)read(file);
         }
 
-        string file = buildPath(option_.path, name ~ "." ~ option_.ext);
+        string file;
+        if (option_.findPath) {
+            file = option_.findPath(name);
+        } else {
+            file = buildPath(option_.path, name ~ "." ~ option_.ext);
+        }
         Node[] nodes;
 
         final switch (option_.level) {
@@ -1415,4 +1437,26 @@ unittest
         std.file.write("unittest.mustache", "Level: {{lvl}}");
         assert(mustache.render("unittest", context) == "Modified");
     }
+}
+
+unittest
+{
+    alias Mustache = MustacheEngine!(string);
+
+    std.file.write("unittest.mustache", "{{>name}}");
+    scope(exit) std.file.remove("unittest.mustache");
+    std.file.write("other.mustache", "Ok");
+    scope(exit) std.file.remove("other.mustache");
+
+    Mustache mustache;
+    auto context = new Mustache.Context;
+    mustache.findPath((path) {
+        if (path == "name") {
+            return "other." ~ mustache.ext;
+        } else {
+            return path ~ "." ~ mustache.ext;
+        }
+    });
+
+    assert(mustache.render("unittest", context) == "Ok");
 }

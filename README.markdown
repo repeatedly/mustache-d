@@ -36,6 +36,10 @@ File extenstion of Mustache template. Default is "mustache".
 
 root path to read Mustache template. Default is "."(current directory).
 
+* findPath(string delegate(string))
+
+callback to dynamically find the path do a Mustache template. Default is none. Mutually exclusive with the `path` option.
+
 * level(CacheLevel)
 
 Cache level for Mustache's in-memory cache. Default is "check". See DDoc.
