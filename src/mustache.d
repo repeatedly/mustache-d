@@ -559,15 +559,16 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          * The result of the delegate should return the full path for
          * the given name.
          */
-         void findPath(FindPath findPath) {
-             option_.findPath = findPath;
-         }
+        FindPath findPath() const
+        {
+            return option_.findPath;
+        }
 
-         /// ditto
-         FindPath findPath() const {
-             return option_.findPath;
-         }
-
+        /// ditto
+        void findPath(FindPath findPath)
+        {
+            option_.findPath = findPath;
+        }
 
         /**
          * Property for cache level
