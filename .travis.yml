@@ -1,4 +1,6 @@
 language: d
+sudo: false
+dist: trusty
 
 d:
   - dmd
@@ -8,6 +10,27 @@ d:
 branches:
   only:
     - master
+
+addons:
+  apt:
+    packages:
+      - pkg-config
+
+install:
+  - pyenv global system 3.6
+  - pip3 install 'meson>=0.45'
+  - mkdir .ntmp
+  - curl -L https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-linux.zip -o .ntmp/ninja-linux.zip
+  - unzip .ntmp/ninja-linux.zip -d .ntmp
+
+before_script:
+  export PATH=$PATH:$PWD/.ntmp
+
+script:
+  - if [[ "$DC" != "gdc" ]]; then meson build && ninja -j8 -C build; fi
+  - if [[ "$DC" != "gdc" ]]; then ninja -j8 -C build test -v; fi
+  - dub build
+  - dub test
 
 notifications:
   email: true
