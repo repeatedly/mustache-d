@@ -490,7 +490,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             try {
                 assert(context.fetch(["unknown"], error) == "");
                 assert(false);
-            } catch (const MustacheException e) { }
+            } catch (MustacheException e) { }
         }
         { // subcontext
             auto sub = new Context();
@@ -808,7 +808,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             try {
                 assert(render("Hello {{&unknown}}", context) == "Hello Ritsu & Mio");
                 assert(false);
-            } catch (const MustacheException e) {}
+            } catch (MustacheException e) {}
 
             m.handler = null;
         }
@@ -1238,7 +1238,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             try {
                 auto key = parseKey(src, "}}", end);
                 assert(false);
-            } catch (const MustacheException e) { }
+            } catch (MustacheException e) { }
         }
         {  // error: missing tag name
             size_t end;
@@ -1246,7 +1246,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             try {
                 auto key = parseKey(src, "}}", end);
                 assert(false);
-            } catch (const MustacheException e) { }
+            } catch (MustacheException e) { }
         }
         {  // error: missing ending tag name
             size_t end;
@@ -1254,7 +1254,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             try {
                 auto key = parseKey(src, "}}", end);
                 assert(false);
-            } catch (const MustacheException e) { }
+            } catch (MustacheException e) { }
         }
         {  // error: missing middle tag name
             size_t end;
@@ -1262,7 +1262,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             try {
                 auto key = parseKey(src, "}}", end);
                 assert(false);
-            } catch (const MustacheException e) { }
+            } catch (MustacheException e) { }
         }
     }
     
