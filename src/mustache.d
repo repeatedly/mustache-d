@@ -235,7 +235,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
       public:
         @safe
-        this(in Context context = null) nothrow
+        this(const Context context = null) nothrow
         {
             parent = context;
         }
