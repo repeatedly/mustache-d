@@ -146,7 +146,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
      * //{{^repo}}No repos :({{/repo}}
      * //  to
      * //No repos :(
-     * context["foo"] = "bar";  // not set to "repo" 
+     * context["foo"] = "bar";  // not set to "repo"
      * -----
      */
     static final class Context
@@ -217,7 +217,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                     return !list.length;
                 }
             }
-            
+
             /* Convenience function */
             @safe @property
             static Section nil() nothrow
@@ -235,7 +235,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
       public:
         @safe
-        this(in Context context = null) nothrow
+        this(const Context context = null) nothrow
         {
             parent = context;
         }
@@ -333,7 +333,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          *  size = reserve size for avoiding reallocation
          *
          * Returns:
-         *  new Context object that added to $(D_PARAM key) section list. 
+         *  new Context object that added to $(D_PARAM key) section list.
          */
         @trusted
         Context addSubContext(in String key, lazy size_t size = 1)
@@ -357,7 +357,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
          *
          * Params:
          *  key = key string to fetch
-         * 
+         *
          * Returns:
          *  a $(D_PARAM key) associated value.　null if key does not exist.
          */
@@ -365,7 +365,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         String fetch(in String[] key, lazy Handler handler = null) const
         {
             assert(key.length > 0);
-            
+
             if (key.length == 1) {
                 auto result = key[0] in variables;
 
@@ -383,7 +383,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                         return *result;
                 }
             }
-            
+
             return handler is null ? null : handler()(keyToString(key));
         }
 
@@ -391,7 +391,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         const(Section) fetchSection()(in String[] key) const /* nothrow */
         {
             assert(key.length > 0);
-            
+
             // Ascend context tree to find the key's beginning
             auto currentSection = key[0] in sections;
             if (currentSection is null) {
@@ -400,17 +400,17 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
                 return parent.fetchSection(key);
             }
-            
+
             // Decend context tree to match the rest of the key
             size_t keyIndex = 0;
             while (currentSection) {
                 // Matched the entire key?
                 if (keyIndex == key.length-1)
                     return currentSection.empty ? Section.nil : *currentSection;
-                
+
                 if (currentSection.type != SectionType.list)
                     return Section.nil; // Can't decend any further
-                
+
                 // Find next part of key
                 keyIndex++;
                 foreach (c; currentSection.list)
@@ -430,7 +430,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             auto result = fetchSection(key);
             if (result.type == type)
                 return result.empty ? null : mixin("result." ~ to!string(type));
-            
+
             return null;
         }
 
@@ -630,7 +630,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         render(name, context, sink);
         return sink.data;
     }
-    
+
     /**
     * OutputRange version of $(D render).
     */
@@ -710,7 +710,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         static void encode(in String text, ref Sink sink)
         {
             size_t index;
-            
+
             foreach (i, c; text) {
                 String temp;
 
@@ -944,23 +944,23 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             sTag = src[0..i];
             eTag = src[i + 1..$].stripLeft();
         }
-        
+
         size_t getEnd(String src)
         {
             auto end = src.indexOf(eTag);
             if (end == -1)
                 throw new MustacheException("Mustache tag is not closed");
-            
+
             return end;
         }
-        
+
         // State capturing for section
         struct Memo
         {
             String[] key;
             Node[]   nodes;
             String   source;
-            
+
             bool opEquals()(auto ref const Memo m) inout
             {
                 // Don't compare source because the internal
@@ -1047,11 +1047,11 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             case '{':
                 src = src[1..$];
                 auto key = parseKey(src, "}", end);
-                
+
                 end += 1;
                 if (end >= src.length || !src[end..$].startsWith(eTag))
                     throw new MustacheException("Unescaped tag is not closed");
-                
+
                 result ~= Node(NodeType.var, key, true);
                 break;
             case '&':
@@ -1137,7 +1137,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             beforeEatWSIndex = index;
             index = src.length - src[index..$].stripLeft().length;
         }
-        
+
         void acceptKeySegment()
         {
             if (keySegmentStart >= beforeEatWSIndex)
@@ -1145,7 +1145,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             key ~= src[keySegmentStart .. beforeEatWSIndex];
         }
-        
+
         eatWhitespace();
         keySegmentStart = index;
 
@@ -1164,7 +1164,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 eatWhitespace();
             }
         }
-        
+
         end = index;
         return key;
     }
@@ -1265,27 +1265,27 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             } catch (MustacheException e) { }
         }
     }
-    
+
     @trusted
     static String keyToString(in String[] key)
     {
         if (key.length == 0)
             return null;
-        
+
         if (key.length == 1)
             return key[0];
-        
+
         Appender!String buf;
         foreach (index, segment; key) {
             if (index != 0)
                 buf.put('.');
-            
+
             buf.put(segment);
         }
-        
+
         return buf.data;
     }
-    
+
     /*
      * Mustache's node types
      */
@@ -1357,7 +1357,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         string toString() const
         {
             string result;
-            
+
             final switch (type) {
             case NodeType.text:
                 result = "[T : \"" ~ to!string(text) ~ "\"]";
