@@ -441,6 +441,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
     unittest
     {
+        auto guard = runTestInTempDirGuard();
+
         Context context = new Context();
 
         context["name"] = "Red Bull";
@@ -786,6 +788,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
     unittest
     {
+        auto guard = runTestInTempDirGuard();
+
         MustacheEngine!(String) m;
         auto render = (String str, Context c) => m.renderString(str, c);
 
@@ -1403,6 +1407,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
 unittest
 {
+    auto guard = runTestInTempDirGuard();
+
     alias MustacheEngine!(string) Mustache;
 
     std.file.write("unittest.mustache", "Level: {{lvl}}");
@@ -1442,6 +1448,8 @@ unittest
 
 unittest
 {
+    auto guard = runTestInTempDirGuard();
+
     alias Mustache = MustacheEngine!(string);
 
     std.file.write("unittest.mustache", "{{>name}}");
@@ -1461,3 +1469,25 @@ unittest
 
     assert(mustache.render("unittest", context) == "Ok");
 }
+
+version(unittest) {
+    auto runTestInTempDirGuard() {
+        import std.conv: to;
+        import std.file: chdir, deleteme, getcwd, mkdir, rmdir;
+        __gshared uint counter = 0;
+        string tempDir = deleteme ~ "." ~ (counter++).to!string;
+        string origDir = getcwd();
+        mkdir(tempDir);
+        chdir(tempDir);
+        static struct Ret {
+            string origDir;
+            string tempDir;
+            ~this() {
+                chdir(origDir);
+                rmdir(tempDir);
+            }
+        }
+        return Ret(origDir, tempDir);
+    }
+}
+
