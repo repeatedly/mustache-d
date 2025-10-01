@@ -76,8 +76,8 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
 
   public:
-    alias String delegate(String) Handler;
-    alias string delegate(string) FindPath;
+    alias Handler = String delegate(String);
+    alias FindPath = string delegate(string);
 
 
     /**
@@ -168,32 +168,32 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
                 Context[]               list;
             }
 
-            @trusted nothrow
+            nothrow
             {
-                this(bool u)
+                this(bool u) @trusted
                 {
                     type = SectionType.use;
                 }
 
-                this(String[String] v)
+                this(String[String] v) @trusted
                 {
                     type = SectionType.var;
                     var  = v;
                 }
 
-                this(String delegate(String) f)
+                this(String delegate(String) f) @trusted
                 {
                     type = SectionType.func;
                     func = f;
                 }
 
-                this(Context c)
+                this(Context c) @trusted
                 {
                     type = SectionType.list;
                     list = [c];
                 }
 
-                this(Context[] c)
+                this(Context[] c) @trusted
                 {
                     type = SectionType.list;
                     list = c;
@@ -202,7 +202,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
             /* nothrow : AA's length is not nothrow */
             @trusted @property
-            bool empty() const
+            bool empty() const nothrow
             {
                 final switch (type) {
                 case SectionType.nil:
@@ -405,7 +405,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             size_t keyIndex = 0;
             while (currentSection) {
                 // Matched the entire key?
-                if (keyIndex == key.length-1)
+                if (keyIndex == key.length - 1)
                     return currentSection.empty ? Section.nil : *currentSection;
 
                 if (currentSection.type != SectionType.list)
@@ -434,9 +434,9 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             return null;
         }
 
-        alias fetchSection!(String[String],          SectionType.var,  "Var")  fetchVar;
-        alias fetchSection!(Context[],               SectionType.list, "List") fetchList;
-        alias fetchSection!(String delegate(String), SectionType.func, "Func") fetchFunc;
+        alias fetchVar = fetchSection!(String[String],          SectionType.var,  "Var");
+        alias fetchList = fetchSection!(Context[],               SectionType.list, "List");
+        alias fetchFunc = fetchSection!(String delegate(String), SectionType.func, "Func");
     }
 
     unittest
@@ -783,7 +783,6 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         }
     }
 
-
     unittest
     {
         MustacheEngine!(String) m;
@@ -1114,7 +1113,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
         }
     }
 
-    private static String[] parseKey(String src, String eTag, out size_t end)
+    static String[] parseKey(String src, String eTag, out size_t end)
     {
         String[] key;
         size_t index = 0;
@@ -1318,7 +1317,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
             }
         }
 
-        @trusted nothrow
+        nothrow
         {
             /**
              * Constructs with arguments.
@@ -1326,7 +1325,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
              * Params:
              *   t = raw text
              */
-            this(String t)
+            this(String t) @trusted
             {
                 type = NodeType.text;
                 text = t;
@@ -1340,7 +1339,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
              *   k = key string of tag
              *   f = invert? or escape?
              */
-            this(NodeType t, String[] k, bool f = false)
+            this(NodeType t, String[] k, bool f = false) @trusted
             {
                 type = t;
                 key  = k;
@@ -1403,7 +1402,7 @@ struct MustacheEngine(String = string) if (isSomeString!(String))
 
 unittest
 {
-    alias MustacheEngine!(string) Mustache;
+    alias Mustache = MustacheEngine!(string);
 
     std.file.write("unittest.mustache", "Level: {{lvl}}");
     scope(exit) std.file.remove("unittest.mustache");
